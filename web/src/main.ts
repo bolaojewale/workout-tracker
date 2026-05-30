@@ -2,6 +2,8 @@
 // now; each step of the roadmap (DESIGN.md §10) fills them in.
 import { api, type AuthStatus } from "./api";
 import { renderAuthGate, logout } from "./auth";
+import { renderExercises } from "./screens/exercises";
+import { renderRoutines } from "./screens/routines";
 
 interface Route {
   path: string;
@@ -37,10 +39,8 @@ const routes: Route[] = [
         </div>`;
     },
   },
-  { path: "/routines", label: "Routines", icon: "📋",
-    render: placeholder("Routines", "Build reusable templates like “Push A” or “Leg Day”.") },
-  { path: "/exercises", label: "Exercises", icon: "💪",
-    render: placeholder("Exercises", "Your exercise library. Mark favorites and set progression steps.") },
+  { path: "/routines", label: "Routines", icon: "📋", render: renderRoutines },
+  { path: "/exercises", label: "Exercises", icon: "💪", render: renderExercises },
   { path: "/progress", label: "Progress", icon: "📈",
     render: placeholder("Progress", "Per-exercise strength, bodyweight, volume, and running pace trends.") },
   { path: "/summary", label: "Summary", icon: "📅",

@@ -9,6 +9,8 @@ import {
   requireAuth,
 } from "./auth";
 import { seedExercises } from "./seed";
+import exercises from "./exercises";
+import routines from "./routines";
 
 export interface Env {
   DB: D1Database;
@@ -143,6 +145,9 @@ api.get("/calc/1rm", (c) => {
   }
   return c.json({ oneRepMax: estimatedOneRepMax(weight, reps) });
 });
+
+api.route("/exercises", exercises);
+api.route("/routines", routines);
 
 app.route("/api", api);
 

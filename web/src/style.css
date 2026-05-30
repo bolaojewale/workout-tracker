@@ -123,6 +123,104 @@ button.primary {
   margin: 0;
 }
 
+/* Lists, rows, forms shared by Exercises/Routines screens */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+.small {
+  font-size: 0.8rem;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.8rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.two {
+  display: flex;
+  gap: 0.6rem;
+}
+.two > * {
+  flex: 1;
+}
+.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+input,
+select {
+  padding: 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--surface-2);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1rem;
+  width: 100%;
+}
+input.num {
+  width: 3.6rem;
+  text-align: center;
+  flex: none;
+}
+ul.tight {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+}
+ul.tight li {
+  margin: 0.15rem 0;
+}
+button.ghost {
+  width: 100%;
+  padding: 0.85rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--surface-2);
+  background: transparent;
+  color: var(--text);
+  font-size: 1rem;
+}
+.star {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  color: var(--surface-2);
+  cursor: pointer;
+}
+.star.on {
+  color: #fbbf24;
+}
+.iconbtn {
+  background: var(--surface-2);
+  border: none;
+  color: var(--text);
+  border-radius: 8px;
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.iconbtn:disabled {
+  opacity: 0.35;
+}
+.danger {
+  color: #f87171;
+}
+.add-ex {
+  margin-top: 0.7rem;
+}
+.item {
+  padding: 0.4rem 0;
+  border-top: 1px solid var(--surface-2);
+}
+
 /* Bottom tab bar — thumb-reachable on phones. */
 nav.tabs {
   position: fixed;
