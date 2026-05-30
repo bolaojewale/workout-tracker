@@ -268,6 +268,31 @@ textarea {
   border-color: var(--good);
 }
 
+/* Charts (Progress screen) */
+.section {
+  font-size: 0.95rem;
+  margin: 0.5rem 0 0.4rem;
+  color: var(--muted);
+}
+svg.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+svg.chart .axis {
+  stroke: var(--surface-2);
+  stroke-width: 1;
+}
+svg.chart .axis-lbl {
+  fill: var(--muted);
+  font-size: 9px;
+}
+.chart-current {
+  margin-top: 0.4rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
 /* Bottom tab bar — thumb-reachable on phones. */
 nav.tabs {
   position: fixed;

@@ -5,6 +5,7 @@ import { renderAuthGate, logout } from "./auth";
 import { renderExercises } from "./screens/exercises";
 import { renderRoutines } from "./screens/routines";
 import { renderToday } from "./screens/today";
+import { renderProgress } from "./screens/progress";
 import { initSync, onPendingChange } from "./sync";
 
 let pending = 0;
@@ -30,8 +31,7 @@ const routes: Route[] = [
   { path: "/today", label: "Today", icon: "🏋️", render: renderToday },
   { path: "/routines", label: "Routines", icon: "📋", render: renderRoutines },
   { path: "/exercises", label: "Exercises", icon: "💪", render: renderExercises },
-  { path: "/progress", label: "Progress", icon: "📈",
-    render: placeholder("Progress", "Per-exercise strength, bodyweight, volume, and running pace trends.") },
+  { path: "/progress", label: "Progress", icon: "📈", render: renderProgress },
   { path: "/summary", label: "Summary", icon: "📅",
     render: placeholder("Summaries", "Weekly and monthly summaries, laid out like your paper sheet.") },
 ];

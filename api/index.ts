@@ -12,6 +12,7 @@ import { seedExercises } from "./seed";
 import exercises from "./exercises";
 import routines from "./routines";
 import sessions, { setRoutes } from "./sessions";
+import stats from "./stats";
 
 export interface Env {
   DB: D1Database;
@@ -171,6 +172,7 @@ api.get("/calc/1rm", (c) => {
 api.route("/exercises", exercises);
 api.route("/routines", routines);
 api.route("/sessions", sessions);
+api.route("/stats", stats);
 api.route("/", setRoutes); // /session-exercises/:id, /sets/:id
 
 app.route("/api", api);
