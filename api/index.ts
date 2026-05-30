@@ -15,10 +15,11 @@ import sessions, { setRoutes } from "./sessions";
 import stats from "./stats";
 import summary from "./summary";
 import checkins from "./checkins";
+import photos from "./photos";
 
 export interface Env {
   DB: D1Database;
-  PHOTOS?: R2Bucket; // enabled in roadmap step 6 (progress photos)
+  PHOTOS: R2Bucket; // progress photos (roadmap step 6)
   ASSETS: Fetcher;
   SESSION_SECRET?: string;
   RP_ID?: string;
@@ -177,6 +178,7 @@ api.route("/sessions", sessions);
 api.route("/stats", stats);
 api.route("/summary", summary);
 api.route("/checkins", checkins);
+api.route("/photos", photos);
 api.route("/", setRoutes); // /session-exercises/:id, /sets/:id
 
 app.route("/api", api);

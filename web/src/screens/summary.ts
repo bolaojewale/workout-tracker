@@ -3,6 +3,7 @@
 import { api } from "../api";
 import { esc } from "../util";
 import { paceLabel } from "../chart";
+import { renderPhotos } from "./photos";
 import type { Checkin, Exercise } from "../../../shared/types";
 
 let tab: "weekly" | "monthly" = "weekly";
@@ -265,6 +266,11 @@ function checkinForm(body: HTMLElement, ci: Checkin | null) {
           .join("") || `<p class="muted small">Mark lifts as favorites to test them here.</p>`
       }
     </div>
+    ${
+      editing
+        ? `<div class="card"><h2 class="mini">Progress photos</h2><div id="ci-photos"></div></div>`
+        : `<div class="card"><p class="muted small">Save the check-in first, then reopen it to add progress photos.</p></div>`
+    }
     <div class="card">
       <label class="stack">Notes<textarea id="ci-notes" rows="2">${esc(ci?.notes ?? "")}</textarea></label>
       <p class="error" id="ci-err" hidden></p>
@@ -274,6 +280,8 @@ function checkinForm(body: HTMLElement, ci: Checkin | null) {
       </div>
       ${editing ? `<button class="link-btn danger" id="ci-del">Delete check-in</button>` : ""}
     </div>`;
+
+  if (editing) renderPhotos(body.querySelector<HTMLElement>("#ci-photos")!, ci!.id);
 
   body.querySelector("#ci-cancel")!.addEventListener("click", () => renderMonthly(body));
   body.querySelector("#ci-del")?.addEventListener("click", async () => {
