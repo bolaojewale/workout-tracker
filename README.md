@@ -41,10 +41,12 @@ npm run deploy                              # build web + deploy Worker
 ```
 
 ## Status
-Steps 1–4 done (see DESIGN.md §10):
+Steps 1–6 done (see DESIGN.md §10):
 - Scaffold: PWA shell + Worker + D1 schema
 - Single-user auth (PBKDF2 + signed cookies), starter exercise seed
 - Exercises & Routines CRUD + screens
 - Session logging with the progression engine; offline logging + sync queue
+- Progress dashboards (per-exercise est-1RM, bodyweight, volume, running pace)
+- Weekly & monthly summaries (sheet-style) + monthly check-ins
 
-Next: progress dashboards (step 5), then weekly/monthly summaries + photos (step 6).
+Remaining: progress photos (needs R2 enabled), then deploy.
