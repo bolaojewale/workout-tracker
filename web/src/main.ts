@@ -4,6 +4,7 @@ import { api, type AuthStatus } from "./api";
 import { renderAuthGate, logout } from "./auth";
 import { renderExercises } from "./screens/exercises";
 import { renderRoutines } from "./screens/routines";
+import { renderToday } from "./screens/today";
 
 interface Route {
   path: string;
@@ -23,22 +24,7 @@ function placeholder(title: string, blurb: string) {
 }
 
 const routes: Route[] = [
-  {
-    path: "/today",
-    label: "Today",
-    icon: "🏋️",
-    render: (root) => {
-      root.innerHTML = `
-        <div class="card">
-          <h2>Today’s session</h2>
-          <p class="muted">
-            Pick or create a routine to load today’s workout. Each exercise will
-            pre-fill from last time with a suggested progression you can edit live.
-          </p>
-          <button class="primary" disabled>Load today’s workout (coming next)</button>
-        </div>`;
-    },
-  },
+  { path: "/today", label: "Today", icon: "🏋️", render: renderToday },
   { path: "/routines", label: "Routines", icon: "📋", render: renderRoutines },
   { path: "/exercises", label: "Exercises", icon: "💪", render: renderExercises },
   { path: "/progress", label: "Progress", icon: "📈",

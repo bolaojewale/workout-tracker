@@ -221,6 +221,53 @@ button.ghost {
   border-top: 1px solid var(--surface-2);
 }
 
+/* Today / session logging */
+details summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+details[open] summary {
+  margin-bottom: 0.6rem;
+}
+textarea {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--surface-2);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+.setrow {
+  padding: 0.35rem 0;
+}
+.setnum {
+  width: 1.4rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.sets {
+  margin: 0.4rem 0;
+}
+.done {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 8px;
+  border: 1px solid var(--surface-2);
+  background: transparent;
+  color: var(--muted);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.done.on {
+  background: var(--good);
+  color: #04261a;
+  border-color: var(--good);
+}
+
 /* Bottom tab bar — thumb-reachable on phones. */
 nav.tabs {
   position: fixed;
