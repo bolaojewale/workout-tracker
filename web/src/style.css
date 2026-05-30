@@ -390,6 +390,23 @@ label.photo-upload {
   cursor: pointer;
 }
 
+/* Plan import */
+.schema-pre {
+  background: var(--bg);
+  border: 1px solid var(--surface-2);
+  border-radius: 10px;
+  padding: 0.6rem;
+  font-size: 0.72rem;
+  overflow-x: auto;
+  white-space: pre;
+  color: var(--muted);
+}
+.imp-ok {
+  color: var(--good);
+  font-size: 0.85rem;
+  margin: 0.3rem 0;
+}
+
 /* Bottom tab bar — thumb-reachable on phones. */
 nav.tabs {
   position: fixed;

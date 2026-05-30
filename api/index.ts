@@ -16,6 +16,7 @@ import stats from "./stats";
 import summary from "./summary";
 import checkins from "./checkins";
 import photos from "./photos";
+import imp from "./import";
 
 export interface Env {
   DB: D1Database;
@@ -179,6 +180,7 @@ api.route("/stats", stats);
 api.route("/summary", summary);
 api.route("/checkins", checkins);
 api.route("/photos", photos);
+api.route("/import", imp);
 api.route("/", setRoutes); // /session-exercises/:id, /sets/:id
 
 app.route("/api", api);

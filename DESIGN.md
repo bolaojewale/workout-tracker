@@ -307,6 +307,10 @@ GET    /api/stats/bodyweight         # bodyweight trend
 GET    /api/stats/running            # pace trend by type
 GET    /api/summary/weekly?week=     # matches the paper weekly summary
 GET    /api/summary/monthly?month=   # matches the paper monthly check-in
+
+# Plan import (LLM- or hand-authored JSON -> exercises + routines)
+GET    /api/import/schema            # the expected plan shape + an example
+POST   /api/import                   # create/upsert routines; match/create exercises by name
 ```
 
 ---

@@ -33,18 +33,141 @@ function exName(id: string): string {
 
 function paintList(root: HTMLElement) {
   root.innerHTML = `
-    <div class="card"><button id="add" class="primary">+ New routine</button></div>
+    <div class="card two">
+      <button id="add" class="primary">+ New routine</button>
+      <button id="import" class="ghost">⬆ Import plan</button>
+    </div>
     ${
       routines.length
         ? routines.map(routineCard).join("")
-        : `<p class="muted">No routines yet. Create one like “Push A”.</p>`
+        : `<p class="muted">No routines yet. Create one like “Push A”, or import a plan.</p>`
     }`;
   root.querySelector("#add")!.addEventListener("click", () => paintForm(root, null));
+  root.querySelector("#import")!.addEventListener("click", () => paintImport(root));
   root.querySelectorAll<HTMLElement>("[data-edit]").forEach((el) =>
     el.addEventListener("click", () =>
       paintForm(root, routines.find((r) => r.id === el.dataset.edit) ?? null),
     ),
   );
+}
+
+// Prompt the user can hand to Claude to get a valid, uploadable plan.
+const CLAUDE_PROMPT = `Create a workout plan and return ONLY a JSON object (no prose, no markdown fences) in exactly this schema:
+
+{
+  "routines": [
+    {
+      "name": "string",
+      "notes": "string (optional)",
+      "exercises": [
+        {
+          "name": "string",
+          "kind": "lift | cardio (optional, default lift)",
+          "muscleGroup": "string (optional)",
+          "unit": "string (optional, default lbs)",
+          "progressionStep": number (optional, default 5),
+          "targetSets": number (optional, default 3),
+          "targetReps": number (optional)
+        }
+      ]
+    }
+  ]
+}
+
+My request: `;
+
+interface ImportResult {
+  ok: boolean;
+  summary: { routinesCreated: number; routinesUpdated: number; exercisesCreated: number; exercisesMatched: number };
+  routines: { id: string; name: string; exercises: number }[];
+}
+
+function paintImport(root: HTMLElement) {
+  root.innerHTML = `
+    <div class="card">
+      <h2>Import a plan</h2>
+      <p class="muted small">
+        Ask Claude for a plan (button below copies a ready prompt), paste the JSON
+        it returns here, and import. New exercises are added to your library;
+        routines with a matching name are updated.
+      </p>
+      <button id="copy-prompt" class="ghost">📋 Copy Claude prompt</button>
+      <label class="stack" style="margin-top:0.8rem">Plan JSON
+        <textarea id="plan-json" rows="10" placeholder='{ "routines": [ … ] }'></textarea>
+      </label>
+      <p class="error" id="imp-err" hidden></p>
+      <p class="imp-ok" id="imp-ok" hidden></p>
+      <div class="two">
+        <button class="ghost" id="imp-cancel">Back</button>
+        <button class="primary" id="imp-go">Import</button>
+      </div>
+      <details style="margin-top:0.8rem">
+        <summary>See the expected format</summary>
+        <pre class="schema-pre" id="schema-pre">loading…</pre>
+      </details>
+    </div>`;
+
+  const err = root.querySelector<HTMLElement>("#imp-err")!;
+  const ok = root.querySelector<HTMLElement>("#imp-ok")!;
+  const ta = root.querySelector<HTMLTextAreaElement>("#plan-json")!;
+
+  root.querySelector("#imp-cancel")!.addEventListener("click", () => renderRoutines(root));
+
+  root.querySelector("#copy-prompt")!.addEventListener("click", async (e) => {
+    const btn = e.currentTarget as HTMLButtonElement;
+    try {
+      await navigator.clipboard.writeText(CLAUDE_PROMPT);
+      btn.textContent = "✓ Copied — paste into Claude";
+    } catch {
+      btn.textContent = "Copy failed — select & copy manually";
+    }
+  });
+
+  // Fill the format example from the API so it can't drift from the server.
+  api
+    .get<{ example: unknown }>("/api/import/schema")
+    .then((doc) => {
+      root.querySelector("#schema-pre")!.textContent = JSON.stringify(doc.example, null, 2);
+    })
+    .catch(() => {
+      root.querySelector("#schema-pre")!.textContent = "(offline)";
+    });
+
+  root.querySelector("#imp-go")!.addEventListener("click", async () => {
+    err.hidden = true;
+    ok.hidden = true;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(stripFences(ta.value));
+    } catch {
+      err.textContent = "That isn’t valid JSON. Paste the object Claude returned.";
+      err.hidden = false;
+      return;
+    }
+    const btn = root.querySelector<HTMLButtonElement>("#imp-go")!;
+    btn.disabled = true;
+    try {
+      const res = await api.post<ImportResult>("/api/import", parsed);
+      const s = res.summary;
+      ok.textContent = `Imported ${res.routines.map((r) => `“${r.name}” (${r.exercises})`).join(", ")} · ${s.exercisesCreated} new exercise(s), ${s.exercisesMatched} matched.`;
+      ok.hidden = false;
+      // Refresh underlying data so the list shows new routines on Back.
+      [routines, library] = await Promise.all([
+        api.get<Routine[]>("/api/routines"),
+        api.get<Exercise[]>("/api/exercises"),
+      ]);
+      setTimeout(() => renderRoutines(root), 1200);
+    } catch (e2) {
+      err.textContent = (e2 as Error).message;
+      err.hidden = false;
+      btn.disabled = false;
+    }
+  });
+}
+
+// Tolerate ```json fenced blocks in case the model wraps its output.
+function stripFences(s: string): string {
+  return s.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
 }
 
 function routineCard(r: Routine): string {
