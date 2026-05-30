@@ -293,6 +293,59 @@ svg.chart .axis-lbl {
   font-weight: 700;
 }
 
+/* Summary screen */
+.tabbar {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.4rem;
+}
+.tab {
+  flex: 1;
+  padding: 0.6rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.tab.active {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.weeknav,
+.center {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.center {
+  justify-content: center;
+}
+.wgrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+  text-align: center;
+}
+.wcell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.3rem 0;
+}
+h2.mini {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.7rem 0 0.3rem;
+}
+.up {
+  color: var(--good);
+}
+.down {
+  color: #f87171;
+}
+
 /* Bottom tab bar — thumb-reachable on phones. */
 nav.tabs {
   position: fixed;

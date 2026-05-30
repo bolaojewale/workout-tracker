@@ -1,11 +1,11 @@
-// App shell + a tiny hash router, gated behind auth. Screens are scaffolds for
-// now; each step of the roadmap (DESIGN.md §10) fills them in.
+// App shell + a tiny hash router, gated behind auth.
 import { api, type AuthStatus } from "./api";
 import { renderAuthGate, logout } from "./auth";
 import { renderExercises } from "./screens/exercises";
 import { renderRoutines } from "./screens/routines";
 import { renderToday } from "./screens/today";
 import { renderProgress } from "./screens/progress";
+import { renderSummary } from "./screens/summary";
 import { initSync, onPendingChange } from "./sync";
 
 let pending = 0;
@@ -17,23 +17,13 @@ interface Route {
   render: (root: HTMLElement) => void;
 }
 
-function placeholder(title: string, blurb: string) {
-  return (root: HTMLElement) => {
-    root.innerHTML = `
-      <div class="card">
-        <h2>${title}</h2>
-        <p class="muted">${blurb}</p>
-      </div>`;
-  };
-}
 
 const routes: Route[] = [
   { path: "/today", label: "Today", icon: "🏋️", render: renderToday },
   { path: "/routines", label: "Routines", icon: "📋", render: renderRoutines },
   { path: "/exercises", label: "Exercises", icon: "💪", render: renderExercises },
   { path: "/progress", label: "Progress", icon: "📈", render: renderProgress },
-  { path: "/summary", label: "Summary", icon: "📅",
-    render: placeholder("Summaries", "Weekly and monthly summaries, laid out like your paper sheet.") },
+  { path: "/summary", label: "Summary", icon: "📅", render: renderSummary },
 ];
 
 function currentPath(): string {

@@ -94,3 +94,25 @@ export interface Mutation<T = unknown> {
 export function estimatedOneRepMax(weight: number, reps: number): number {
   return weight * (1 + reps / 30);
 }
+
+export interface CheckinLift {
+  id: string;
+  exerciseId: string;
+  weight: number | null;
+  reps: number | null;
+}
+
+export interface Checkin {
+  id: string;
+  date: string; // YYYY-MM-DD
+  chest: number | null;
+  waist: number | null;
+  hips: number | null;
+  arms: number | null;
+  thighs: number | null;
+  forearms: number | null;
+  bodyWeight: number | null;
+  mileTimeSec: number | null;
+  notes: string | null;
+  lifts: CheckinLift[];
+}
