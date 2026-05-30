@@ -1,0 +1,30 @@
+# Cloudflare Worker that serves the PWA static assets (web/dist) and the /api/* API.
+# This is the modern Workers + Static Assets pattern (supersedes a separate Pages
+# project) and keeps frontend + API under one deploy + one domain.
+name = "workout-tracker"
+main = "api/index.ts"
+compatibility_date = "2024-12-18"
+compatibility_flags = ["nodejs_compat"]
+
+# Built PWA is served as static assets. SPA fallback handled in code.
+[assets]
+directory = "web/dist"
+binding = "ASSETS"
+
+# D1 database — create once with: wrangler d1 create workout_tracker
+# then paste the returned database_id below.
+[[d1_databases]]
+binding = "DB"
+database_name = "workout_tracker"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# R2 bucket for progress photos — create with: wrangler r2 bucket create workout-photos
+[[r2_buckets]]
+binding = "PHOTOS"
+bucket_name = "workout-photos"
+
+# Secrets (set with `wrangler secret put NAME`):
+#   SESSION_SECRET  - HMAC key for signing session cookies
+#   RP_ID           - WebAuthn relying party id (your domain)
+#   ORIGIN          - app origin, e.g. https://workout.example.com
