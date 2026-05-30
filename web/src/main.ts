@@ -5,6 +5,9 @@ import { renderAuthGate, logout } from "./auth";
 import { renderExercises } from "./screens/exercises";
 import { renderRoutines } from "./screens/routines";
 import { renderToday } from "./screens/today";
+import { initSync, onPendingChange } from "./sync";
+
+let pending = 0;
 
 interface Route {
   path: string;
@@ -73,8 +76,13 @@ function updateNet() {
   const el = document.getElementById("net");
   if (!el) return;
   const online = navigator.onLine;
-  el.textContent = online ? "online" : "offline";
-  el.className = `pill ${online ? "online" : ""}`;
+  if (pending > 0) {
+    el.textContent = online ? `syncing ${pending}…` : `offline · ${pending} queued`;
+    el.className = "pill";
+  } else {
+    el.textContent = online ? "online" : "offline";
+    el.className = `pill ${online ? "online" : ""}`;
+  }
 }
 
 async function boot() {
@@ -102,6 +110,11 @@ window.addEventListener("hashchange", () => {
 window.addEventListener("online", updateNet);
 window.addEventListener("offline", updateNet);
 
+onPendingChange((n) => {
+  pending = n;
+  updateNet();
+});
+initSync();
 boot();
 
 if ("serviceWorker" in navigator) {

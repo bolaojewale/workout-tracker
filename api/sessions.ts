@@ -370,7 +370,8 @@ setRoutes.post("/session-exercises/:id/sets", async (c) => {
   )
     .bind(sxId)
     .first<{ n: number }>();
-  const id = crypto.randomUUID();
+  // Accept a client-generated id so offline-created sets are idempotent on replay.
+  const id = b.id ?? crypto.randomUUID();
   await c.env.DB.prepare(
     `INSERT INTO set_entry (id, session_exercise_id, set_number, weight, reps, rpe, is_warmup, completed)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

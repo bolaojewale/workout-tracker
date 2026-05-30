@@ -41,5 +41,10 @@ npm run deploy                              # build web + deploy Worker
 ```
 
 ## Status
-Scaffold (roadmap step 1): builds, serves the PWA shell, `/api/health` works.
-Auth, routines, session logging, and dashboards are next — see DESIGN.md §10.
+Steps 1–4 done (see DESIGN.md §10):
+- Scaffold: PWA shell + Worker + D1 schema
+- Single-user auth (PBKDF2 + signed cookies), starter exercise seed
+- Exercises & Routines CRUD + screens
+- Session logging with the progression engine; offline logging + sync queue
+
+Next: progress dashboards (step 5), then weekly/monthly summaries + photos (step 6).

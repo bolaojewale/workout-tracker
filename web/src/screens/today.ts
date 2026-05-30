@@ -1,6 +1,8 @@
 // Today / session logging: pick date + routine, load a prefilled session
 // (progression-suggested), then edit sets, metrics, run, and notes live.
-import { api } from "../api";
+import { api, ApiError } from "../api";
+import { mutate } from "../sync";
+import { cacheGet, cacheSet } from "../store";
 import { esc } from "../util";
 import type { Exercise, Routine, Session, SessionExercise } from "../../../shared/types";
 
@@ -20,9 +22,16 @@ export async function renderToday(root: HTMLElement) {
       api.get<Exercise[]>("/api/exercises"),
       api.get<Routine[]>("/api/routines"),
     ]);
+    cacheSet("exercises", library);
+    cacheSet("routines", routines);
   } catch {
-    root.innerHTML = `<div class="card"><p class="error">Couldn’t load. Are you online?</p></div>`;
-    return;
+    // Offline: fall back to last-known data so the gym still works.
+    library = (await cacheGet<Exercise[]>("exercises")) ?? [];
+    routines = (await cacheGet<Routine[]>("routines")) ?? [];
+    if (!library.length) {
+      root.innerHTML = `<div class="card"><p class="error">Couldn’t load and no offline copy yet. Connect once, then it works offline.</p></div>`;
+      return;
+    }
   }
   current = null;
   paintPicker(root);
@@ -50,12 +59,25 @@ function paintPicker(root: HTMLElement) {
     const routineId = root.querySelector<HTMLSelectElement>("#routine")!.value || null;
     const btn = root.querySelector<HTMLButtonElement>("#load")!;
     btn.disabled = true;
+    const cacheKey = `session:${chosenDate}:${routineId ?? ""}`;
     try {
       current = await api.post<Session>("/api/sessions", { date: chosenDate, routineId });
+      cacheSet(cacheKey, current);
       paintSession(root);
     } catch (e) {
-      btn.disabled = false;
-      alert((e as Error).message);
+      // Offline: reopen a previously loaded session for this date+routine.
+      const cached = await cacheGet<Session>(cacheKey);
+      if (cached) {
+        current = cached;
+        paintSession(root);
+      } else {
+        btn.disabled = false;
+        alert(
+          e instanceof ApiError
+            ? e.message
+            : "You’re offline and haven’t loaded this workout before. Load it once online first.",
+        );
+      }
     }
   });
 }
@@ -201,38 +223,37 @@ function wireSession(root: HTMLElement) {
 
     cardEl.querySelector<HTMLInputElement>("[data-rpe]")!.addEventListener("change", (e) => {
       const v = (e.target as HTMLInputElement).value;
-      api.patch(`/api/session-exercises/${sxId}`, { rpe: v === "" ? null : Number(v) });
+      mutate("PATCH", `/api/session-exercises/${sxId}`, { rpe: v === "" ? null : Number(v) });
     });
 
     cardEl.querySelectorAll<HTMLElement>(".setrow").forEach((rowEl) => wireSetRow(rowEl));
 
-    cardEl.querySelector("[data-addset]")!.addEventListener("click", async () => {
-      const res = await api.post<{ id: string; setNumber: number }>(
-        `/api/session-exercises/${sxId}/sets`,
-        {},
-      );
+    cardEl.querySelector("[data-addset]")!.addEventListener("click", () => {
       const sx = s.exercises.find((x) => x.id === sxId)!;
+      // Client-generated id keeps the set stable for optimistic UI + replay.
+      const id = crypto.randomUUID();
       sx.sets.push({
-        id: res.id,
-        setNumber: res.setNumber,
+        id,
+        setNumber: sx.sets.length + 1,
         weight: null,
         reps: null,
         rpe: null,
         isWarmup: false,
         completed: false,
       });
+      mutate("POST", `/api/session-exercises/${sxId}/sets`, { id, weight: null, reps: null });
+      cacheCurrent();
       paintSession(root);
     });
 
-    cardEl.querySelector("[data-bump]")!.addEventListener("click", async () => {
+    cardEl.querySelector("[data-bump]")!.addEventListener("click", () => {
       const sx = s.exercises.find((x) => x.id === sxId)!;
       const step = exStep(exId);
-      await Promise.all(
-        sx.sets.map((set) => {
-          set.weight = (set.weight ?? 0) + step;
-          return api.patch(`/api/sets/${set.id}`, { weight: set.weight });
-        }),
-      );
+      sx.sets.forEach((set) => {
+        set.weight = (set.weight ?? 0) + step;
+        mutate("PATCH", `/api/sets/${set.id}`, { weight: set.weight });
+      });
+      cacheCurrent();
       paintSession(root);
     });
   });
@@ -250,20 +271,23 @@ function wireSetRow(rowEl: HTMLElement) {
       const f = inp.dataset.f as "weight" | "reps";
       const v = inp.value === "" ? null : Number(inp.value);
       (set as unknown as Record<string, unknown>)[f] = v;
-      api.patch(`/api/sets/${setId}`, { [f]: v });
+      mutate("PATCH", `/api/sets/${setId}`, { [f]: v });
+      cacheCurrent();
     }),
   );
 
   rowEl.querySelector("[data-done]")!.addEventListener("click", () => {
     set.completed = !set.completed;
     rowEl.querySelector("[data-done]")!.classList.toggle("on", set.completed);
-    api.patch(`/api/sets/${setId}`, { completed: set.completed });
+    mutate("PATCH", `/api/sets/${setId}`, { completed: set.completed });
+    cacheCurrent();
   });
 
-  rowEl.querySelector("[data-rmset]")!.addEventListener("click", async () => {
-    await api.del(`/api/sets/${setId}`);
+  rowEl.querySelector("[data-rmset]")!.addEventListener("click", () => {
+    mutate("DELETE", `/api/sets/${setId}`);
     sx.sets = sx.sets.filter((st) => st.id !== setId);
     rowEl.remove();
+    cacheCurrent();
   });
 }
 
@@ -292,14 +316,12 @@ function wireRun(root: HTMLElement) {
   }
   function save() {
     showPace();
-    api
-      .put(`/api/sessions/${current!.id}/run`, {
-        distanceMi: dist.value === "" ? null : Number(dist.value),
-        durationSec: parseMmss(time.value),
-        effort: effort.value === "" ? null : Number(effort.value),
-        runType: type.value || null,
-      })
-      .catch(() => {});
+    mutate("PUT", `/api/sessions/${current!.id}/run`, {
+      distanceMi: dist.value === "" ? null : Number(dist.value),
+      durationSec: parseMmss(time.value),
+      effort: effort.value === "" ? null : Number(effort.value),
+      runType: type.value || null,
+    });
   }
   [dist, time, effort, type].forEach((el) => el.addEventListener("change", save));
   showPace();
@@ -307,5 +329,11 @@ function wireRun(root: HTMLElement) {
 
 function patchSession(patch: Record<string, unknown>) {
   Object.assign(current!, patch);
-  api.patch(`/api/sessions/${current!.id}`, patch).catch(() => {});
+  cacheCurrent();
+  mutate("PATCH", `/api/sessions/${current!.id}`, patch);
+}
+
+// Snapshot the live session so an offline reload restores latest edits.
+function cacheCurrent() {
+  if (current) cacheSet(`session:${current.date}:${current.routineId ?? ""}`, current);
 }

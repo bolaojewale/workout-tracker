@@ -29,6 +29,27 @@ const app = new Hono<AppEnv>();
 // --- API routes -----------------------------------------------------------
 const api = new Hono<AppEnv>();
 
+// Idempotency guard for offline replay (DESIGN.md §8): a mutation carrying an
+// X-Mutation-Id that's already been applied is acknowledged without re-running.
+// Successful new mutations record their id so replays are no-ops.
+api.use("*", async (c, next) => {
+  if (c.req.method === "GET") return next();
+  const mid = c.req.header("X-Mutation-Id");
+  if (!mid) return next();
+  const seen = await c.env.DB.prepare("SELECT 1 AS ok FROM applied_mutation WHERE id = ?")
+    .bind(mid)
+    .first();
+  if (seen) return c.json({ ok: true, duplicate: true });
+  await next();
+  if (c.res.status >= 200 && c.res.status < 300) {
+    await c.env.DB.prepare(
+      "INSERT OR IGNORE INTO applied_mutation (id, applied_at) VALUES (?, ?)",
+    )
+      .bind(mid, Date.now())
+      .run();
+  }
+});
+
 api.get("/health", (c) =>
   c.json({ ok: true, service: "workout-tracker", time: Date.now() }),
 );
