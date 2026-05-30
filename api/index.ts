@@ -1,25 +1,35 @@
 import { Hono } from "hono";
 import { estimatedOneRepMax } from "../shared/types";
+import {
+  hashPassword,
+  verifyPassword,
+  issueSession,
+  clearSession,
+  getUserId,
+  requireAuth,
+} from "./auth";
+import { seedExercises } from "./seed";
 
 export interface Env {
   DB: D1Database;
-  PHOTOS: R2Bucket;
+  PHOTOS?: R2Bucket; // enabled in roadmap step 6 (progress photos)
   ASSETS: Fetcher;
   SESSION_SECRET?: string;
   RP_ID?: string;
   ORIGIN?: string;
 }
 
-const app = new Hono<{ Bindings: Env }>();
+export type AppEnv = { Bindings: Env; Variables: { userId: string } };
+
+const app = new Hono<AppEnv>();
 
 // --- API routes -----------------------------------------------------------
-const api = new Hono<{ Bindings: Env }>();
+const api = new Hono<AppEnv>();
 
 api.get("/health", (c) =>
   c.json({ ok: true, service: "workout-tracker", time: Date.now() }),
 );
 
-// Quick sanity endpoint: confirms D1 binding works once a DB is bound.
 api.get("/health/db", async (c) => {
   try {
     const row = await c.env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
@@ -29,7 +39,102 @@ api.get("/health/db", async (c) => {
   }
 });
 
-// Example of shared logic wired through; replaced by real stats later.
+// --- Auth (public) --------------------------------------------------------
+// Single-user model: registration is allowed only until the one user exists.
+async function userCount(env: Env): Promise<number> {
+  const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM user").first<{
+    n: number;
+  }>();
+  return row?.n ?? 0;
+}
+
+api.get("/auth/status", async (c) => {
+  const registered = (await userCount(c.env)) > 0;
+  const authenticated = (await getUserId(c)) !== null;
+  return c.json({ registered, authenticated });
+});
+
+api.post("/auth/register", async (c) => {
+  if ((await userCount(c.env)) > 0) {
+    return c.json({ error: "already registered" }, 409);
+  }
+  const body = await c.req.json<{
+    email?: string;
+    displayName?: string;
+    password?: string;
+  }>();
+  const password = body.password ?? "";
+  if (password.length < 8) {
+    return c.json({ error: "password must be at least 8 characters" }, 400);
+  }
+
+  const userId = crypto.randomUUID();
+  const now = Date.now();
+  await c.env.DB.prepare(
+    `INSERT INTO user (id, email, display_name, units, created_at)
+     VALUES (?, ?, ?, 'imperial', ?)`,
+  )
+    .bind(userId, body.email ?? null, body.displayName ?? null, now)
+    .run();
+  await c.env.DB.prepare(
+    `INSERT INTO credential (id, user_id, type, password_hash, created_at)
+     VALUES (?, ?, 'password', ?, ?)`,
+  )
+    .bind(crypto.randomUUID(), userId, await hashPassword(password), now)
+    .run();
+
+  await seedExercises(c.env, userId);
+  await issueSession(c, userId);
+  return c.json({ ok: true });
+});
+
+api.post("/auth/login", async (c) => {
+  const body = await c.req.json<{ email?: string; password?: string }>();
+  const password = body.password ?? "";
+
+  // Single user: match by email if provided, else just take the one user.
+  const user = body.email
+    ? await c.env.DB.prepare("SELECT id FROM user WHERE email = ?")
+        .bind(body.email)
+        .first<{ id: string }>()
+    : await c.env.DB.prepare("SELECT id FROM user LIMIT 1").first<{ id: string }>();
+  if (!user) return c.json({ error: "invalid credentials" }, 401);
+
+  const cred = await c.env.DB.prepare(
+    "SELECT password_hash FROM credential WHERE user_id = ? AND type = 'password'",
+  )
+    .bind(user.id)
+    .first<{ password_hash: string }>();
+  if (!cred?.password_hash || !(await verifyPassword(password, cred.password_hash))) {
+    return c.json({ error: "invalid credentials" }, 401);
+  }
+
+  await issueSession(c, user.id);
+  return c.json({ ok: true });
+});
+
+api.post("/auth/logout", (c) => {
+  clearSession(c);
+  return c.json({ ok: true });
+});
+
+// --- Authenticated routes -------------------------------------------------
+api.use("/me", requireAuth);
+api.get("/me", async (c) => {
+  const row = await c.env.DB.prepare(
+    "SELECT id, email, display_name, units FROM user WHERE id = ?",
+  )
+    .bind(c.get("userId"))
+    .first<{ id: string; email: string | null; display_name: string | null; units: string }>();
+  if (!row) return c.json({ error: "not found" }, 404);
+  return c.json({
+    id: row.id,
+    email: row.email,
+    displayName: row.display_name,
+    units: row.units,
+  });
+});
+
 api.get("/calc/1rm", (c) => {
   const weight = Number(c.req.query("weight"));
   const reps = Number(c.req.query("reps"));
@@ -42,8 +147,6 @@ api.get("/calc/1rm", (c) => {
 app.route("/api", api);
 
 // --- Static assets + SPA fallback -----------------------------------------
-// Everything not under /api is served from the built PWA (web/dist). Unknown
-// paths fall back to index.html so client-side routing works.
 app.all("*", async (c) => {
   const res = await c.env.ASSETS.fetch(c.req.raw);
   if (res.status === 404) {

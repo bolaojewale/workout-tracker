@@ -39,6 +39,19 @@ header.app-bar {
 header.app-bar h1 {
   font-size: 1.25rem;
   margin: 0;
+  margin-right: auto;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.25rem 0.4rem;
+}
+.link-btn:hover {
+  color: var(--text);
 }
 
 .card {
@@ -80,6 +93,34 @@ button.primary {
   color: #04263b;
   font-weight: 700;
   font-size: 1rem;
+}
+
+/* Auth form */
+.auth form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 0.5rem;
+}
+.auth label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.auth input {
+  padding: 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--surface-2);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1rem;
+}
+.error {
+  color: #f87171;
+  font-size: 0.85rem;
+  margin: 0;
 }
 
 /* Bottom tab bar — thumb-reachable on phones. */

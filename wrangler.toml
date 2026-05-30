@@ -16,13 +16,15 @@ binding = "ASSETS"
 [[d1_databases]]
 binding = "DB"
 database_name = "workout_tracker"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "ce21170b-3b53-46c6-91f6-e0c2ad26ff6c"
 migrations_dir = "migrations"
 
-# R2 bucket for progress photos — create with: wrangler r2 bucket create workout-photos
-[[r2_buckets]]
-binding = "PHOTOS"
-bucket_name = "workout-photos"
+# R2 bucket for progress photos (roadmap step 6). Enable R2 once in the
+# Cloudflare dashboard, then: wrangler r2 bucket create workout-photos
+# and uncomment the binding below.
+# [[r2_buckets]]
+# binding = "PHOTOS"
+# bucket_name = "workout-photos"
 
 # Secrets (set with `wrangler secret put NAME`):
 #   SESSION_SECRET  - HMAC key for signing session cookies
