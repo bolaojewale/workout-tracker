@@ -121,6 +121,20 @@ function paintSession(root: HTMLElement) {
 
     <div id="exercises">${s.exercises.map(exerciseCard).join("")}</div>
 
+    <div class="card">
+      <div class="row add-ex">
+        <select id="add-ex-pick" class="grow">
+          <option value="">— add an exercise —</option>
+          ${library
+            .filter((e) => !e.archived)
+            .map((e) => `<option value="${e.id}">${esc(e.name)}</option>`)
+            .join("")}
+          <option value="__new__">+ New exercise…</option>
+        </select>
+        <button class="ghost" id="add-ex-go">Add</button>
+      </div>
+    </div>
+
     ${runCard(s)}
 
     <div class="card">
@@ -155,6 +169,7 @@ function exerciseCard(sx: SessionExercise): string {
       <div class="row">
         <strong class="grow">${esc(exName(sx.exerciseId))}</strong>
         <input class="num" type="number" step="0.5" data-rpe value="${sx.rpe ?? ""}" placeholder="RPE" title="RPE" />
+        <button class="iconbtn danger" data-rmex title="Remove exercise from this workout">🗑</button>
       </div>
       <div class="sets">${rows}</div>
       <div class="row">
@@ -256,9 +271,61 @@ function wireSession(root: HTMLElement) {
       cacheCurrent();
       paintSession(root);
     });
+
+    cardEl.querySelector("[data-rmex]")!.addEventListener("click", () => {
+      const sx = s.exercises.find((x) => x.id === sxId)!;
+      const logged = sx.sets.some((set) => set.completed || set.weight != null || set.reps != null);
+      const msg = logged
+        ? `Remove "${exName(exId)}" from this workout? Its logged sets today will be discarded. (Your routine isn’t changed.)`
+        : `Remove "${exName(exId)}" from this workout? (Your routine isn’t changed.)`;
+      if (!confirm(msg)) return;
+      s.exercises = s.exercises.filter((x) => x.id !== sxId);
+      mutate("DELETE", `/api/session-exercises/${sxId}`);
+      cacheCurrent();
+      paintSession(root);
+    });
   });
 
+  wireAddExercise(root);
   wireRun(root);
+}
+
+// "+ Add an exercise" control below the exercise list. Picks from the library
+// or creates a new one inline; the server prefills via the progression engine.
+function wireAddExercise(root: HTMLElement) {
+  const pick = root.querySelector<HTMLSelectElement>("#add-ex-pick");
+  const go = root.querySelector<HTMLButtonElement>("#add-ex-go");
+  if (!pick || !go) return;
+
+  go.addEventListener("click", async () => {
+    const choice = pick.value;
+    if (!choice) return;
+
+    let body: { exerciseId?: string; name?: string };
+    if (choice === "__new__") {
+      const name = prompt("New exercise name:")?.trim();
+      if (!name) return;
+      body = { name };
+    } else {
+      body = { exerciseId: choice };
+    }
+
+    go.disabled = true;
+    try {
+      // Need the server's progression prefill + any newly-created exercise id,
+      // so this one goes through the API directly (online action).
+      const updated = await api.post<Session>(`/api/sessions/${current!.id}/exercises`, body);
+      current = updated;
+      // Refresh the library so a newly-created exercise resolves to a name.
+      library = await api.get<Exercise[]>("/api/exercises");
+      cacheSet("exercises", library);
+      cacheCurrent();
+      paintSession(root);
+    } catch (e) {
+      go.disabled = false;
+      alert((e as Error).message || "Couldn’t add exercise (are you online?)");
+    }
+  });
 }
 
 function wireSetRow(rowEl: HTMLElement) {

@@ -297,6 +297,87 @@ sessions.patch("/:id", async (c) => {
   return c.json(await loadSession(c.env, userId, id));
 });
 
+// Add an exercise to an existing session (mid-workout). Resolves the exercise
+// by id, or by name (creating it in the library if new), then prefills sets via
+// the progression engine. Appends after the last exercise.
+sessions.post("/:id/exercises", async (c) => {
+  const userId = c.get("userId");
+  const sessionId = c.req.param("id");
+  const owned = await c.env.DB.prepare("SELECT id FROM session WHERE id = ? AND user_id = ?")
+    .bind(sessionId, userId)
+    .first<{ id: string }>();
+  if (!owned) return c.json({ error: "not found" }, 404);
+
+  const b = await c.req.json<{
+    exerciseId?: string;
+    name?: string;
+    targetSets?: number;
+    targetReps?: number | null;
+  }>();
+
+  // Resolve the exercise: explicit id, else match by name, else create it.
+  let exerciseId = b.exerciseId ?? null;
+  let progressionStep = 5;
+  if (exerciseId) {
+    const ex = await c.env.DB.prepare(
+      "SELECT progression_step FROM exercise WHERE id = ? AND user_id = ?",
+    )
+      .bind(exerciseId, userId)
+      .first<{ progression_step: number }>();
+    if (!ex) return c.json({ error: "exercise not found" }, 404);
+    progressionStep = ex.progression_step;
+  } else if (b.name?.trim()) {
+    const name = b.name.trim();
+    const match = await c.env.DB.prepare(
+      "SELECT id, progression_step FROM exercise WHERE user_id = ? AND lower(name) = lower(?) AND archived = 0",
+    )
+      .bind(userId, name)
+      .first<{ id: string; progression_step: number }>();
+    if (match) {
+      exerciseId = match.id;
+      progressionStep = match.progression_step;
+    } else {
+      exerciseId = crypto.randomUUID();
+      await c.env.DB.prepare(
+        `INSERT INTO exercise
+           (id, user_id, name, kind, muscle_group, default_sets, is_favorite, unit, progression_step, archived, created_at)
+         VALUES (?, ?, ?, 'lift', NULL, 3, 0, 'lbs', 5, 0, ?)`,
+      )
+        .bind(exerciseId, userId, name, Date.now())
+        .run();
+    }
+  } else {
+    return c.json({ error: "exerciseId or name required" }, 400);
+  }
+
+  const targetReps = b.targetReps ?? null;
+  const targetSets = b.targetSets ?? 3;
+
+  const posRow = await c.env.DB.prepare(
+    "SELECT COALESCE(MAX(position), -1) + 1 AS pos FROM session_exercise WHERE session_id = ?",
+  )
+    .bind(sessionId)
+    .first<{ pos: number }>();
+
+  const sxId = crypto.randomUUID();
+  const stmts: D1PreparedStatement[] = [
+    c.env.DB.prepare(
+      "INSERT INTO session_exercise (id, session_id, exercise_id, position, rpe) VALUES (?, ?, ?, ?, NULL)",
+    ).bind(sxId, sessionId, exerciseId, posRow?.pos ?? 0),
+  ];
+  const sug = await suggestFor(c.env, userId, exerciseId, targetReps, progressionStep, sessionId);
+  for (let i = 1; i <= targetSets; i++) {
+    stmts.push(
+      c.env.DB.prepare(
+        `INSERT INTO set_entry (id, session_exercise_id, set_number, weight, reps, rpe, is_warmup, completed)
+         VALUES (?, ?, ?, ?, ?, NULL, 0, 0)`,
+      ).bind(crypto.randomUUID(), sxId, i, sug.weight, sug.reps),
+    );
+  }
+  await c.env.DB.batch(stmts);
+  return c.json(await loadSession(c.env, userId, sessionId), 201);
+});
+
 sessions.delete("/:id", async (c) => {
   const res = await c.env.DB.prepare("DELETE FROM session WHERE id = ? AND user_id = ?")
     .bind(c.req.param("id"), c.get("userId"))
@@ -358,6 +439,15 @@ setRoutes.patch("/session-exercises/:id", async (c) => {
   await c.env.DB.prepare("UPDATE session_exercise SET rpe = ? WHERE id = ?")
     .bind(b.rpe ?? null, id)
     .run();
+  return c.json({ ok: true });
+});
+
+// Remove an exercise from a session (this session only; cascades its sets).
+// The routine template is untouched.
+setRoutes.delete("/session-exercises/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!(await ownsSx(c.env, c.get("userId"), id))) return c.json({ error: "not found" }, 404);
+  await c.env.DB.prepare("DELETE FROM session_exercise WHERE id = ?").bind(id).run();
   return c.json({ ok: true });
 });
 
