@@ -80,6 +80,7 @@ export interface Session {
   calories: number | null;
   notes: string | null;
   completed: boolean;
+  createdAt: number; // epoch ms; used for time-of-day labels when multiple/day
   exercises: SessionExercise[];
   run: RunBlock | null;
 }

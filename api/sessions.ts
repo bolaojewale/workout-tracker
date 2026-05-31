@@ -20,6 +20,7 @@ interface SessionRow {
   calories: number | null;
   notes: string | null;
   completed: number;
+  created_at: number;
 }
 interface SxRow {
   id: string;
@@ -88,6 +89,7 @@ async function loadSession(env: Env, userId: string, id: string): Promise<Sessio
     calories: s.calories,
     notes: s.notes,
     completed: !!s.completed,
+    createdAt: s.created_at,
     exercises,
     run: run
       ? {
@@ -169,18 +171,23 @@ const sessions = new Hono<AppEnv>();
 sessions.use("*", requireAuth);
 
 // Create (or return existing) a session for a date+routine, prefilled.
+// Multiple workouts per day are allowed: by default we reopen the most recent
+// matching session for the date+routine, but `forceNew` always creates a fresh
+// one (used by the "Start another" action).
 sessions.post("/", async (c) => {
   const userId = c.get("userId");
-  const b = await c.req.json<{ date?: string; routineId?: string | null }>();
+  const b = await c.req.json<{ date?: string; routineId?: string | null; forceNew?: boolean }>();
   const date = b.date ?? new Date().toISOString().slice(0, 10);
   const routineId = b.routineId ?? null;
 
-  const existing = await c.env.DB.prepare(
-    "SELECT id FROM session WHERE user_id = ? AND date = ? AND routine_id IS ?",
-  )
-    .bind(userId, date, routineId)
-    .first<{ id: string }>();
-  if (existing) return c.json(await loadSession(c.env, userId, existing.id));
+  if (!b.forceNew) {
+    const existing = await c.env.DB.prepare(
+      "SELECT id FROM session WHERE user_id = ? AND date = ? AND routine_id IS ? ORDER BY created_at DESC LIMIT 1",
+    )
+      .bind(userId, date, routineId)
+      .first<{ id: string }>();
+    if (existing) return c.json(await loadSession(c.env, userId, existing.id));
+  }
 
   const now = Date.now();
   const sessionId = crypto.randomUUID();

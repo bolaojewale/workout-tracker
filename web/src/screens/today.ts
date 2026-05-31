@@ -15,6 +15,10 @@ const exName = (id: string) => library.find((e) => e.id === id)?.name ?? "(exerc
 const exUnit = (id: string) => library.find((e) => e.id === id)?.unit ?? "lbs";
 const exStep = (id: string) => library.find((e) => e.id === id)?.progressionStep ?? 5;
 
+// Time-of-day label, e.g. "7:32 AM" — used to tell apart multiple same-day workouts.
+const timeLabel = (epochMs: number) =>
+  new Date(epochMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
 export async function renderToday(root: HTMLElement) {
   root.innerHTML = `<div class="card"><p class="muted">Loading…</p></div>`;
   try {
@@ -68,13 +72,23 @@ function paintPicker(root: HTMLElement) {
 }
 
 // Load (or create) a session for a date+routine and switch to the logging view.
-async function loadSession(root: HTMLElement, date: string, routineId: string | null) {
+// forceNew always creates a fresh session (multiple workouts per day).
+async function loadSession(
+  root: HTMLElement,
+  date: string,
+  routineId: string | null,
+  forceNew = false,
+) {
   const cacheKey = `session:${date}:${routineId ?? ""}`;
   try {
-    current = await api.post<Session>("/api/sessions", { date, routineId });
-    cacheSet(cacheKey, current);
+    current = await api.post<Session>("/api/sessions", { date, routineId, forceNew });
+    if (!forceNew) cacheSet(cacheKey, current);
     paintSession(root);
   } catch (e) {
+    if (forceNew) {
+      alert("Starting another workout needs a connection.");
+      return;
+    }
     const cached = await cacheGet<Session>(cacheKey);
     if (cached) {
       current = cached;
@@ -117,15 +131,22 @@ async function paintRecent(root: HTMLElement) {
     host.innerHTML = `<p class="muted small">No workouts yet. Load one above to get started.</p>`;
     return;
   }
+  // When a date has more than one workout, show each one's time of day so they
+  // can be told apart.
+  const perDate = new Map<string, number>();
+  recent.forEach((s) => perDate.set(s.date, (perDate.get(s.date) ?? 0) + 1));
+
   host.innerHTML = recent
     .map((s) => {
       const setCount = s.exercises.reduce((n, ex) => n + ex.sets.length, 0);
       const label = `${s.exercises.length} exercise${s.exercises.length === 1 ? "" : "s"} · ${setCount} set${setCount === 1 ? "" : "s"}`;
+      const when =
+        (perDate.get(s.date) ?? 0) > 1 ? `${esc(s.date)} · ${esc(timeLabel(s.createdAt))}` : esc(s.date);
       return `
       <div class="row recent-item" data-open="${s.id}">
         <div class="grow">
           <strong>${esc(s.title ?? "Workout")}</strong> ${s.completed ? "✅" : ""}
-          <div class="muted small">${esc(s.date)} · ${label}</div>
+          <div class="muted small">${when} · ${label}</div>
         </div>
         <button class="iconbtn danger" data-del-session="${s.id}" title="Delete this workout">🗑</button>
       </div>`;
@@ -159,14 +180,17 @@ function paintSession(root: HTMLElement) {
       <div class="row">
         <div class="grow">
           <strong>${esc(s.title ?? "Workout")}</strong>
-          <div class="muted small">${esc(s.date)}${
+          <div class="muted small">${esc(s.date)} · ${esc(timeLabel(s.createdAt))}${
             s.routineId ? " · prefilled from last time" : ""
           }</div>
         </div>
         <button class="link-btn" id="change">Change</button>
       </div>
       <label class="check"><input type="checkbox" id="completed" ${s.completed ? "checked" : ""}/> Completed</label>
-      <button class="link-btn danger" id="del-session">Delete this workout</button>
+      <div class="row two">
+        <button class="link-btn" id="another">+ Start another (same day)</button>
+        <button class="link-btn danger" id="del-session">Delete this workout</button>
+      </div>
     </div>
 
     <details class="card"><summary>Daily metrics</summary>
@@ -296,6 +320,11 @@ function wireSession(root: HTMLElement) {
     } catch {
       alert("Couldn’t delete (are you online?).");
     }
+  });
+
+  // Start another workout on the same day (same routine), even though one exists.
+  root.querySelector("#another")!.addEventListener("click", () => {
+    loadSession(root, s.date, s.routineId, true);
   });
 
   root.querySelector<HTMLInputElement>("#completed")!.addEventListener("change", (e) =>
