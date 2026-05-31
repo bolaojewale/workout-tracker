@@ -84,6 +84,13 @@ header.app-bar h1 {
   color: var(--good);
 }
 
+.pill.saving {
+  color: var(--accent);
+}
+.pill[hidden] {
+  display: none;
+}
+
 button.primary {
   width: 100%;
   padding: 0.85rem;

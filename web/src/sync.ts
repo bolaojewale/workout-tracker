@@ -8,16 +8,50 @@
 // X-Mutation-Id guard makes re-applied mutations no-ops.
 import { enqueue, allQueued, dequeue, queueCount } from "./store";
 
+// Save-status the UI can show. "saving" = a write is in flight or queued work
+// is draining; "saved" = a write just settled (brief confirmation); "idle" =
+// nothing pending; "offline-queued" = writes are waiting for a connection.
+export type SaveState = "idle" | "saving" | "saved" | "offline-queued";
+
 type Listener = (pending: number) => void;
+type SaveListener = (state: SaveState, pending: number) => void;
 const listeners = new Set<Listener>();
+const saveListeners = new Set<SaveListener>();
 let replaying = false;
+let inFlight = 0; // writes currently being sent
+let savedTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function onPendingChange(fn: Listener) {
   listeners.add(fn);
 }
+export function onSaveStateChange(fn: SaveListener) {
+  saveListeners.add(fn);
+}
+
 async function notify() {
   const n = await queueCount();
   listeners.forEach((fn) => fn(n));
+  await emitSaveState(n);
+}
+
+// Derive and broadcast the save state from in-flight + queued counts.
+async function emitSaveState(pending?: number) {
+  const n = pending ?? (await queueCount());
+  let state: SaveState;
+  if (inFlight > 0) state = "saving";
+  else if (n > 0) state = navigator.onLine ? "saving" : "offline-queued";
+  else state = "idle";
+  saveListeners.forEach((fn) => fn(state, n));
+}
+
+// Briefly flash "saved" after a write settles with nothing else pending.
+async function flashSaved() {
+  if (inFlight > 0) return;
+  const n = await queueCount();
+  if (n > 0) return;
+  saveListeners.forEach((fn) => fn("saved", 0));
+  clearTimeout(savedTimer);
+  savedTimer = setTimeout(() => emitSaveState(0), 1500);
 }
 
 // Returns true on a definitive server response (incl. 4xx), false on a network
@@ -46,7 +80,18 @@ async function send(
 
 export async function mutate(method: string, path: string, body?: unknown): Promise<void> {
   const mutationId = crypto.randomUUID();
-  if (navigator.onLine && (await send(method, path, body, mutationId))) return;
+  inFlight++;
+  emitSaveState();
+  try {
+    if (navigator.onLine && (await send(method, path, body, mutationId))) {
+      inFlight--;
+      await flashSaved();
+      return;
+    }
+  } catch {
+    /* fall through to queue */
+  }
+  inFlight--;
   await enqueue({ mutationId, method, path, body });
   await notify();
 }
@@ -64,6 +109,7 @@ export async function replay(): Promise<void> {
     }
   } finally {
     replaying = false;
+    await flashSaved(); // confirm once the queue has drained
   }
 }
 
