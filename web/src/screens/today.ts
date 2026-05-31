@@ -50,36 +50,106 @@ function paintPicker(root: HTMLElement) {
       </label>
       <button id="load" class="primary">Load today’s workout</button>
       ${routines.length ? "" : `<p class="muted small">Tip: create a routine first for prefilled, progressed sets.</p>`}
+    </div>
+    <div class="card">
+      <h2>Recent workouts</h2>
+      <div id="recent"><p class="muted small">Loading…</p></div>
     </div>`;
 
   root.querySelector<HTMLInputElement>("#date")!.addEventListener("change", (e) => {
     chosenDate = (e.target as HTMLInputElement).value;
   });
-  root.querySelector("#load")!.addEventListener("click", async () => {
+  root.querySelector("#load")!.addEventListener("click", () => {
     const routineId = root.querySelector<HTMLSelectElement>("#routine")!.value || null;
-    const btn = root.querySelector<HTMLButtonElement>("#load")!;
-    btn.disabled = true;
-    const cacheKey = `session:${chosenDate}:${routineId ?? ""}`;
-    try {
-      current = await api.post<Session>("/api/sessions", { date: chosenDate, routineId });
-      cacheSet(cacheKey, current);
-      paintSession(root);
-    } catch (e) {
-      // Offline: reopen a previously loaded session for this date+routine.
-      const cached = await cacheGet<Session>(cacheKey);
-      if (cached) {
-        current = cached;
-        paintSession(root);
-      } else {
-        btn.disabled = false;
-        alert(
-          e instanceof ApiError
-            ? e.message
-            : "You’re offline and haven’t loaded this workout before. Load it once online first.",
-        );
-      }
-    }
+    loadSession(root, chosenDate, routineId);
   });
+
+  paintRecent(root);
+}
+
+// Load (or create) a session for a date+routine and switch to the logging view.
+async function loadSession(root: HTMLElement, date: string, routineId: string | null) {
+  const cacheKey = `session:${date}:${routineId ?? ""}`;
+  try {
+    current = await api.post<Session>("/api/sessions", { date, routineId });
+    cacheSet(cacheKey, current);
+    paintSession(root);
+  } catch (e) {
+    const cached = await cacheGet<Session>(cacheKey);
+    if (cached) {
+      current = cached;
+      paintSession(root);
+    } else {
+      alert(
+        e instanceof ApiError
+          ? e.message
+          : "You’re offline and haven’t loaded this workout before. Load it once online first.",
+      );
+    }
+  }
+}
+
+// Open an already-saved session by id (from the recent list).
+async function openSessionById(root: HTMLElement, id: string) {
+  try {
+    current = await api.get<Session>(`/api/sessions/${id}`);
+    cacheCurrent();
+    paintSession(root);
+  } catch {
+    alert("Couldn’t open that workout (are you online?).");
+  }
+}
+
+// Recent-sessions list with per-day delete.
+async function paintRecent(root: HTMLElement) {
+  const host = root.querySelector<HTMLElement>("#recent");
+  if (!host) return;
+  let recent: Session[];
+  try {
+    recent = await api.get<Session[]>("/api/sessions");
+    cacheSet("recent-sessions", recent);
+  } catch {
+    recent = (await cacheGet<Session[]>("recent-sessions")) ?? [];
+  }
+  recent = recent.slice(0, 15);
+
+  if (!recent.length) {
+    host.innerHTML = `<p class="muted small">No workouts yet. Load one above to get started.</p>`;
+    return;
+  }
+  host.innerHTML = recent
+    .map((s) => {
+      const setCount = s.exercises.reduce((n, ex) => n + ex.sets.length, 0);
+      const label = `${s.exercises.length} exercise${s.exercises.length === 1 ? "" : "s"} · ${setCount} set${setCount === 1 ? "" : "s"}`;
+      return `
+      <div class="row recent-item" data-open="${s.id}">
+        <div class="grow">
+          <strong>${esc(s.title ?? "Workout")}</strong> ${s.completed ? "✅" : ""}
+          <div class="muted small">${esc(s.date)} · ${label}</div>
+        </div>
+        <button class="iconbtn danger" data-del-session="${s.id}" title="Delete this workout">🗑</button>
+      </div>`;
+    })
+    .join("");
+
+  host.querySelectorAll<HTMLElement>("[data-open]").forEach((el) =>
+    el.addEventListener("click", (e) => {
+      if ((e.target as HTMLElement).closest("[data-del-session]")) return; // ignore delete clicks
+      openSessionById(root, el.dataset.open!);
+    }),
+  );
+  host.querySelectorAll<HTMLElement>("[data-del-session]").forEach((el) =>
+    el.addEventListener("click", async () => {
+      const s = recent.find((x) => x.id === el.dataset.delSession)!;
+      if (!confirm(`Delete the "${s.title ?? "Workout"}" on ${s.date}? All its logged sets will be lost.`)) return;
+      try {
+        await api.del(`/api/sessions/${s.id}`);
+        paintRecent(root);
+      } catch {
+        alert("Couldn’t delete (are you online?).");
+      }
+    }),
+  );
 }
 
 function paintSession(root: HTMLElement) {
@@ -96,6 +166,7 @@ function paintSession(root: HTMLElement) {
         <button class="link-btn" id="change">Change</button>
       </div>
       <label class="check"><input type="checkbox" id="completed" ${s.completed ? "checked" : ""}/> Completed</label>
+      <button class="link-btn danger" id="del-session">Delete this workout</button>
     </div>
 
     <details class="card"><summary>Daily metrics</summary>
@@ -211,6 +282,22 @@ function wireSession(root: HTMLElement) {
 
   root.querySelector("#change")!.addEventListener("click", () => paintPicker(root));
 
+  root.querySelector("#del-session")!.addEventListener("click", async () => {
+    if (
+      !confirm(
+        `Delete the "${s.title ?? "Workout"}" on ${s.date}? All its logged sets will be lost.`,
+      )
+    )
+      return;
+    try {
+      await api.del(`/api/sessions/${s.id}`);
+      current = null;
+      paintPicker(root);
+    } catch {
+      alert("Couldn’t delete (are you online?).");
+    }
+  });
+
   root.querySelector<HTMLInputElement>("#completed")!.addEventListener("change", (e) =>
     patchSession({ completed: (e.target as HTMLInputElement).checked }),
   );
@@ -274,11 +361,16 @@ function wireSession(root: HTMLElement) {
 
     cardEl.querySelector("[data-rmex]")!.addEventListener("click", () => {
       const sx = s.exercises.find((x) => x.id === sxId)!;
-      const logged = sx.sets.some((set) => set.completed || set.weight != null || set.reps != null);
-      const msg = logged
-        ? `Remove "${exName(exId)}" from this workout? Its logged sets today will be discarded. (Your routine isn’t changed.)`
-        : `Remove "${exName(exId)}" from this workout? (Your routine isn’t changed.)`;
-      if (!confirm(msg)) return;
+      // Only confirm if you've actually logged work (a completed set). Untouched
+      // or merely prefilled exercises remove instantly so skipping is friction-free.
+      const logged = sx.sets.some((set) => set.completed);
+      if (
+        logged &&
+        !confirm(
+          `Remove "${exName(exId)}" from this workout? Its logged sets today will be discarded. (Your routine isn’t changed.)`,
+        )
+      )
+        return;
       s.exercises = s.exercises.filter((x) => x.id !== sxId);
       mutate("DELETE", `/api/session-exercises/${sxId}`);
       cacheCurrent();

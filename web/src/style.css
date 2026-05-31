@@ -407,6 +407,16 @@ label.photo-upload {
   margin: 0.3rem 0;
 }
 
+/* Recent workouts list (Today picker) */
+.recent-item {
+  padding: 0.55rem 0;
+  border-top: 1px solid var(--surface-2);
+  cursor: pointer;
+}
+.recent-item:first-child {
+  border-top: none;
+}
+
 /* Bottom tab bar — thumb-reachable on phones. */
 nav.tabs {
   position: fixed;
