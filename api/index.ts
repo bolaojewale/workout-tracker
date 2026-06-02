@@ -17,6 +17,7 @@ import summary from "./summary";
 import checkins from "./checkins";
 import photos from "./photos";
 import imp from "./import";
+import { meals, mealLog } from "./meals";
 
 export interface Env {
   DB: D1Database;
@@ -151,17 +152,35 @@ api.post("/auth/logout", (c) => {
 api.use("/me", requireAuth);
 api.get("/me", async (c) => {
   const row = await c.env.DB.prepare(
-    "SELECT id, email, display_name, units FROM user WHERE id = ?",
+    "SELECT id, email, display_name, units, protein_goal FROM user WHERE id = ?",
   )
     .bind(c.get("userId"))
-    .first<{ id: string; email: string | null; display_name: string | null; units: string }>();
+    .first<{
+      id: string;
+      email: string | null;
+      display_name: string | null;
+      units: string;
+      protein_goal: number | null;
+    }>();
   if (!row) return c.json({ error: "not found" }, 404);
   return c.json({
     id: row.id,
     email: row.email,
     displayName: row.display_name,
     units: row.units,
+    proteinGoal: row.protein_goal,
   });
+});
+
+// Update profile settings (currently the daily protein goal in grams).
+api.patch("/me", async (c) => {
+  const b = await c.req.json<{ proteinGoal?: number | null }>();
+  if (b.proteinGoal !== undefined) {
+    await c.env.DB.prepare("UPDATE user SET protein_goal = ? WHERE id = ?")
+      .bind(b.proteinGoal, c.get("userId"))
+      .run();
+  }
+  return c.json({ ok: true });
 });
 
 api.get("/calc/1rm", (c) => {
@@ -181,6 +200,8 @@ api.route("/summary", summary);
 api.route("/checkins", checkins);
 api.route("/photos", photos);
 api.route("/import", imp);
+api.route("/meals", meals);
+api.route("/meal-log", mealLog);
 api.route("/", setRoutes); // /session-exercises/:id, /sets/:id
 
 app.route("/api", api);

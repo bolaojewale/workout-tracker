@@ -10,6 +10,32 @@ export interface User {
   email: string | null;
   displayName: string | null;
   units: Units;
+  proteinGoal: number | null; // grams/day; powers auto "protein hit"
+}
+
+export interface Meal {
+  id: string;
+  name: string;
+  protein: number; // grams
+  carbs: number;
+  fat: number;
+  archived: boolean;
+}
+
+export interface MealLogEntry {
+  id: string;
+  date: string; // YYYY-MM-DD
+  mealId: string | null; // set when picked from the library
+  name: string;
+  protein: number;
+  carbs: number;
+  fat: number;
+  position: number;
+}
+
+/** 4/4/9 kcal per gram of protein/carbs/fat. */
+export function macroCalories(protein: number, carbs: number, fat: number): number {
+  return Math.round(protein * 4 + carbs * 4 + fat * 9);
 }
 
 export interface Exercise {
@@ -73,6 +99,8 @@ export interface Session {
   routineId: string | null;
   title: string | null;
   bodyWeight: number | null;
+  bodyFat: number | null; // %
+  muscleMass: number | null; // lbs
   sleepHours: number | null;
   energy: number | null;
   mood: number | null;

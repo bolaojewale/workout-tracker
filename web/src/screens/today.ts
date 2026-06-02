@@ -4,6 +4,7 @@ import { api, ApiError } from "../api";
 import { mutate } from "../sync";
 import { cacheGet, cacheSet } from "../store";
 import { esc } from "../util";
+import { renderFood, foodDatalist } from "./food";
 import type { Exercise, Routine, Session, SessionExercise } from "../../../shared/types";
 
 let library: Exercise[] = [];
@@ -199,19 +200,18 @@ function paintSession(root: HTMLElement) {
         ${metricInput("sleepHours", "Sleep (hrs)", s.sleepHours)}
       </div>
       <div class="two">
+        ${metricInput("bodyFat", "Body fat (%)", s.bodyFat)}
+        ${metricInput("muscleMass", "Muscle mass (lbs)", s.muscleMass)}
+      </div>
+      <div class="two">
         ${metricInput("energy", "Energy 1–10", s.energy)}
         ${metricInput("mood", "Mood 1–10", s.mood)}
       </div>
-      <div class="two">
-        ${metricInput("calories", "Calories", s.calories)}
-        <label class="stack">Protein hit?
-          <select data-metric="proteinHit">
-            <option value=""  ${s.proteinHit == null ? "selected" : ""}>—</option>
-            <option value="1" ${s.proteinHit === true ? "selected" : ""}>Yes</option>
-            <option value="0" ${s.proteinHit === false ? "selected" : ""}>No</option>
-          </select>
-        </label>
-      </div>
+    </details>
+
+    <details class="card" id="food-card"><summary>Food</summary>
+      ${foodDatalist()}
+      <div id="food-body"><p class="muted small">Open to load…</p></div>
     </details>
 
     <div id="exercises">${s.exercises.map(exerciseCard).join("")}</div>
@@ -304,6 +304,16 @@ function runCard(s: Session): string {
 function wireSession(root: HTMLElement) {
   const s = current!;
 
+  // Food card: load the day's meals the first time it's expanded.
+  const foodCard = root.querySelector<HTMLDetailsElement>("#food-card");
+  let foodLoaded = false;
+  foodCard?.addEventListener("toggle", () => {
+    if (foodCard.open && !foodLoaded) {
+      foodLoaded = true;
+      renderFood(root.querySelector<HTMLElement>("#food-body")!, s.date);
+    }
+  });
+
   root.querySelector("#change")!.addEventListener("click", () => paintPicker(root));
 
   root.querySelector("#del-session")!.addEventListener("click", async () => {
@@ -336,10 +346,7 @@ function wireSession(root: HTMLElement) {
     el.addEventListener("change", () => {
       const field = el.dataset.metric!;
       const raw = (el as HTMLInputElement).value;
-      let value: number | boolean | null;
-      if (field === "proteinHit") value = raw === "" ? null : raw === "1";
-      else value = raw === "" ? null : Number(raw);
-      patchSession({ [field]: value });
+      patchSession({ [field]: raw === "" ? null : Number(raw) });
     }),
   );
 

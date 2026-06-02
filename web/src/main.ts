@@ -6,6 +6,7 @@ import { renderRoutines } from "./screens/routines";
 import { renderToday } from "./screens/today";
 import { renderProgress } from "./screens/progress";
 import { renderSummary } from "./screens/summary";
+import { renderMeals } from "./screens/meals";
 import { initSync, onPendingChange, onSaveStateChange, type SaveState } from "./sync";
 
 let pending = 0;
@@ -23,6 +24,7 @@ const routes: Route[] = [
   { path: "/today", label: "Today", icon: "🏋️", render: renderToday },
   { path: "/routines", label: "Routines", icon: "📋", render: renderRoutines },
   { path: "/exercises", label: "Exercises", icon: "💪", render: renderExercises },
+  { path: "/meals", label: "Meals", icon: "🍽️", render: renderMeals },
   { path: "/progress", label: "Progress", icon: "📈", render: renderProgress },
   { path: "/summary", label: "Summary", icon: "📅", render: renderSummary },
 ];

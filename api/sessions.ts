@@ -13,6 +13,8 @@ interface SessionRow {
   routine_id: string | null;
   title: string | null;
   body_weight: number | null;
+  body_fat: number | null;
+  muscle_mass: number | null;
   sleep_hours: number | null;
   energy: number | null;
   mood: number | null;
@@ -82,6 +84,8 @@ async function loadSession(env: Env, userId: string, id: string): Promise<Sessio
     routineId: s.routine_id,
     title: s.title,
     bodyWeight: s.body_weight,
+    bodyFat: s.body_fat,
+    muscleMass: s.muscle_mass,
     sleepHours: s.sleep_hours,
     energy: s.energy,
     mood: s.mood,
@@ -286,6 +290,8 @@ sessions.patch("/:id", async (c) => {
   const fields: Record<string, unknown> = {
     title: b.title,
     body_weight: b.bodyWeight,
+    body_fat: b.bodyFat,
+    muscle_mass: b.muscleMass,
     sleep_hours: b.sleepHours,
     energy: b.energy,
     mood: b.mood,
