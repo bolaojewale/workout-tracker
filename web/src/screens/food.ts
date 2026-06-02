@@ -54,7 +54,14 @@ function paint(host: HTMLElement) {
       <div class="small">${goalLine}</div>
     </div>
     <div id="meal-bars">${entries.map(mealBar).join("")}</div>
-    <button class="ghost" id="add-meal">+ Add meal</button>
+    <div class="row add-meal-row">
+      <select id="meal-pick" class="grow">
+        <option value="">— add a saved meal —</option>
+        ${library.map((m) => `<option value="${m.id}">${esc(m.name)} (${Math.round(m.protein)}P)</option>`).join("")}
+        <option value="__custom__">+ Custom meal…</option>
+      </select>
+      <button class="ghost" id="add-meal">Add</button>
+    </div>
     ${
       proteinGoal == null
         ? `<button class="link-btn" id="set-goal">Set a daily protein goal</button>`
@@ -63,8 +70,16 @@ function paint(host: HTMLElement) {
 
   host.querySelectorAll<HTMLElement>(".meal-bar").forEach((bar) => wireBar(host, bar));
 
+  // Add either a saved meal (macros pulled from the library) or a blank custom bar.
+  const pick = host.querySelector<HTMLSelectElement>("#meal-pick")!;
   host.querySelector("#add-meal")!.addEventListener("click", async () => {
-    await addEntry({ name: "" });
+    const v = pick.value;
+    if (v === "" || v === "__custom__") {
+      await addEntry({ name: "" });
+    } else {
+      const m = library.find((x) => x.id === v);
+      if (m) await addEntry({ mealId: m.id, name: m.name, protein: m.protein, carbs: m.carbs, fat: m.fat });
+    }
     paint(host);
   });
 

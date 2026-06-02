@@ -453,6 +453,9 @@ label.photo-upload {
   flex: 1;
   width: auto;
 }
+.add-meal-row {
+  margin-top: 0.6rem;
+}
 
 /* Bottom tab bar — thumb-reachable on phones. */
 nav.tabs {
