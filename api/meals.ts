@@ -158,13 +158,14 @@ mealLog.patch("/:id", async (c) => {
   if (!existing) return c.json({ error: "not found" }, 404);
   const b = await c.req.json<Partial<MealLogEntry>>();
   await c.env.DB.prepare(
-    "UPDATE meal_log SET name = ?, protein = ?, carbs = ?, fat = ? WHERE id = ?",
+    "UPDATE meal_log SET name = ?, protein = ?, carbs = ?, fat = ?, meal_id = ? WHERE id = ?",
   )
     .bind(
       b.name?.trim() ?? existing.name,
       b.protein ?? existing.protein,
       b.carbs ?? existing.carbs,
       b.fat ?? existing.fat,
+      b.mealId !== undefined ? b.mealId : existing.meal_id,
       id,
     )
     .run();

@@ -95,6 +95,10 @@ function paint(host: HTMLElement) {
 
 function mealBar(e: MealLogEntry): string {
   // A datalist lets you pick a saved meal by name or type a custom one.
+  // Custom bars (not linked to a library meal) get a "save to library" action.
+  const saveBtn = e.mealId
+    ? ""
+    : `<button class="iconbtn" data-save title="Save to my meals">💾</button>`;
   return `
     <div class="meal-bar" data-id="${e.id}">
       <input class="meal-name" list="meal-options" value="${esc(e.name)}" placeholder="Meal name" />
@@ -102,6 +106,7 @@ function mealBar(e: MealLogEntry): string {
         <input class="num" type="number" step="any" data-f="protein" value="${e.protein || ""}" placeholder="P" title="protein g" />
         <input class="num" type="number" step="any" data-f="carbs" value="${e.carbs || ""}" placeholder="C" title="carbs g" />
         <input class="num" type="number" step="any" data-f="fat" value="${e.fat || ""}" placeholder="F" title="fat g" />
+        ${saveBtn}
         <button class="iconbtn danger" data-rm title="Remove meal">✕</button>
       </div>
     </div>`;
@@ -148,6 +153,33 @@ function wireBar(host: HTMLElement, bar: HTMLElement) {
       updateTotals(host);
     }),
   );
+
+  // Save this custom bar to the Meals library, then link it back to the entry.
+  bar.querySelector("[data-save]")?.addEventListener("click", async () => {
+    if (!entry.name.trim()) {
+      alert("Give the meal a name before saving it.");
+      return;
+    }
+    if (library.some((m) => m.name.toLowerCase() === entry.name.trim().toLowerCase())) {
+      alert(`“${entry.name.trim()}” is already in your meals.`);
+      return;
+    }
+    try {
+      const saved = await api.post<Meal>("/api/meals", {
+        name: entry.name.trim(),
+        protein: entry.protein,
+        carbs: entry.carbs,
+        fat: entry.fat,
+      });
+      library.push(saved);
+      library.sort((a, b) => a.name.localeCompare(b.name));
+      entry.mealId = saved.id;
+      mutate("PATCH", `/api/meal-log/${id}`, { mealId: saved.id });
+      paint(host); // hides the save button now that it's linked
+    } catch {
+      alert("Couldn’t save the meal — saving to your library needs a connection.");
+    }
+  });
 
   bar.querySelector("[data-rm]")!.addEventListener("click", async () => {
     entries = entries.filter((e) => e.id !== id);
