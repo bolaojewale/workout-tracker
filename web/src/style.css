@@ -158,10 +158,37 @@ button.primary {
 .two > * {
   flex: 1;
 }
+/* Workout title: looks like a heading, editable in place. */
+.title-input {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.15rem 0.3rem;
+  margin: -0.15rem -0.3rem 0;
+  width: 100%;
+}
+.title-input:focus {
+  background: var(--bg);
+  border-color: var(--surface-2);
+  outline: none;
+}
 .check {
+  display: flex;
   flex-direction: row;
   align-items: center;
   gap: 0.5rem;
+}
+/* Checkboxes shouldn't inherit the big padded text-input look below. */
+.check input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  margin: 0;
+  flex: none;
+  accent-color: var(--accent);
 }
 input,
 select {

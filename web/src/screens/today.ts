@@ -180,7 +180,8 @@ function paintSession(root: HTMLElement) {
     <div class="card">
       <div class="row">
         <div class="grow">
-          <strong>${esc(s.title ?? "Workout")}</strong>
+          <input id="title" class="title-input" value="${esc(s.title ?? "Workout")}"
+            aria-label="Workout name" placeholder="Workout" />
           <div class="muted small">${esc(s.date)} · ${esc(timeLabel(s.createdAt))}${
             s.routineId ? " · prefilled from last time" : ""
           }</div>
@@ -315,6 +316,12 @@ function wireSession(root: HTMLElement) {
   });
 
   root.querySelector("#change")!.addEventListener("click", () => paintPicker(root));
+
+  // Rename this workout inline (defaults back to "Workout" if cleared).
+  root.querySelector<HTMLInputElement>("#title")!.addEventListener("change", (e) => {
+    const v = (e.target as HTMLInputElement).value.trim();
+    patchSession({ title: v || null });
+  });
 
   root.querySelector("#del-session")!.addEventListener("click", async () => {
     if (
