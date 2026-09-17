@@ -27,18 +27,55 @@ npm run dev:web               # vite on :5173
 
 Type-check everything: `npm run typecheck`.
 
+## Branching
+
+Two kinds of branch, and the branch name is the whole deploy story:
+
+| Branch | What a push does | Where it lands |
+| --- | --- | --- |
+| `main` | `wrangler deploy` | production — <https://workouts.bolaojewale.com> |
+| anything else | `wrangler versions upload` | a per-push preview URL on `workers.dev` |
+
+Cloudflare **Workers Builds** watches the repo and runs those commands itself, so
+a push (or a merged PR) is the deploy. Nothing is deployed from a laptop.
+
+A preview URL looks like `https://<version-prefix>-workout-tracker.<subdomain>.workers.dev`
+and is printed in the build log and on the Worker's Versions tab. It's a new URL
+every push, and it never takes production traffic.
+
+Work on a branch, open a PR, test the preview on your phone, merge to `main`.
+
+### Previews share the production database
+Preview builds use the **same D1 database and secrets as production** — that's
+deliberate (a preview shows your real workout history), but it means a dev branch
+can write real data. Two consequences:
+
+- Preview URLs are publicly reachable; the app's password login is what guards
+  them. Cloudflare Access can lock them down further if that's not enough.
+- **Migrations are not automatic.** Before merging a PR that adds a file to
+  `migrations/`, apply it yourself:
+
+  ```bash
+  npm run db:migrate      # wrangler d1 migrations apply --remote
+  ```
+
+  Deliberately left out of the build so no branch can reshape the live schema
+  on its own.
+
 ## Deploy to Cloudflare
+
+Routine deploys need no commands — see **Branching** above.
+
+For reference, the one-time provisioning (already done for this account) was:
+
 ```bash
-# One-time provisioning
 wrangler d1 create workout_tracker          # paste database_id into wrangler.toml
 wrangler r2 bucket create workout-photos
 wrangler secret put SESSION_SECRET
-wrangler secret put RP_ID                   # your domain
-wrangler secret put ORIGIN                  # https://your-domain
-
-npm run db:migrate                          # apply migrations to remote D1
-npm run deploy                              # build web + deploy Worker
 ```
+
+`npm run deploy` still works as a manual escape hatch if Workers Builds is ever
+unavailable. To undo a bad deploy, use Versions → Rollback in the dashboard.
 
 ## Status
 Steps 1–6 done (see DESIGN.md §10):
@@ -49,4 +86,6 @@ Steps 1–6 done (see DESIGN.md §10):
 - Progress dashboards (per-exercise est-1RM, bodyweight, volume, running pace)
 - Weekly & monthly summaries (sheet-style) + monthly check-ins
 
-Remaining: progress photos (needs R2 enabled), then deploy.
+Deployed and in daily use at <https://workouts.bolaojewale.com>.
+
+Remaining: progress photos (needs R2 enabled).

@@ -360,7 +360,10 @@ Mobile-first layout; works installed and offline.
 
 - **Lang:** TypeScript across `api`, `web`, `shared`.
 - **DB access:** plain SQL via D1 prepared statements (no heavy ORM).
-- **Build/deploy:** `wrangler` for Worker + D1 migrations; Pages for `web`.
+- **Build/deploy:** `wrangler` for the Worker + D1 migrations; `web` ships as
+  Workers Static Assets in the same deploy (no separate Pages project).
+  Cloudflare Workers Builds deploys `main` to production and every other
+  branch to a preview URL — see the README's Branching section.
 
 ---
 
@@ -375,7 +378,7 @@ Mobile-first layout; works installed and offline.
 5. **Progress dashboards** — per-exercise, bodyweight, volume, pace charts.
 6. **Weekly & monthly summaries** — sheet-matching views; photo upload to R2.
 7. **Deploy** — provision D1 + R2 on the user's Cloudflare account, run
-   migrations, ship Pages + Worker.
+   migrations, ship the Worker (API + static assets) via Workers Builds.
 
 ---
 
