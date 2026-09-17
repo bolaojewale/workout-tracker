@@ -6,6 +6,15 @@ main = "api/index.ts"
 compatibility_date = "2024-12-18"
 compatibility_flags = ["nodejs_compat"]
 
+# --- Deploy scheme (see README "Branching") --------------------------------
+# main             -> Workers Builds runs `wrangler deploy`          -> production
+# any other branch -> Workers Builds runs `wrangler versions upload` -> preview URL
+#
+# Preview URLs are served from the workers.dev subdomain, so it stays enabled
+# even though production is reached through its custom domain.
+workers_dev = true
+preview_urls = true
+
 # Built PWA is served as static assets. SPA fallback handled in code.
 [assets]
 directory = "web/dist"

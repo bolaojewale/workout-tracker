@@ -206,6 +206,9 @@ input[type="date"] {
   width: auto;
   align-self: flex-start;
   max-width: 100%;
+  /* If any engine still leaves slack in the box, hug the left rather than
+     centring the date the way iOS Safari does by default. */
+  text-align: left;
 }
 input.num {
   width: 3.6rem;
