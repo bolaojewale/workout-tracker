@@ -200,6 +200,13 @@ select {
   font-size: 1rem;
   width: 100%;
 }
+/* A date needs ~9 characters — fit it to the date instead of the whole card.
+   align-self is needed too: .stack is a flex column and would stretch it back. */
+input[type="date"] {
+  width: auto;
+  align-self: flex-start;
+  max-width: 100%;
+}
 input.num {
   width: 3.6rem;
   text-align: center;
