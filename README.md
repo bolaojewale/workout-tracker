@@ -78,14 +78,13 @@ wrangler secret put SESSION_SECRET
 unavailable. To undo a bad deploy, use Versions → Rollback in the dashboard.
 
 ## Status
-Steps 1–6 done (see DESIGN.md §10):
+Deployed and in daily use at <https://workouts.bolaojewale.com>.
+
+All roadmap steps done (see DESIGN.md §10):
 - Scaffold: PWA shell + Worker + D1 schema
 - Single-user auth (PBKDF2 + signed cookies), starter exercise seed
 - Exercises & Routines CRUD + screens
 - Session logging with the progression engine; offline logging + sync queue
 - Progress dashboards (per-exercise est-1RM, bodyweight, volume, running pace)
 - Weekly & monthly summaries (sheet-style) + monthly check-ins
-
-Deployed and in daily use at <https://workouts.bolaojewale.com>.
-
-Remaining: progress photos (needs R2 enabled).
+- Progress photos, stored in R2 (`api/photos.ts`)

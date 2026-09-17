@@ -38,7 +38,7 @@ time trial, photos).
 | Area | Decision |
 |------|----------|
 | **Base logic** | Per-exercise. Loading a session pulls each exercise's most recent logged numbers and suggests a small increase when all target reps were hit last time. Always overridable. |
-| **Stack** | Cloudflare Pages (frontend) + Workers (API) + D1/SQLite (data) + R2 (progress photos). |
+| **Stack** | Cloudflare Workers + Static Assets (PWA and API in one Worker) + D1/SQLite (data) + R2 (progress photos). |
 | **Auth** | Single user. Passkey (WebAuthn) preferred, password fallback. |
 | **Mobile** | Installable PWA. Offline logging queued locally and synced when back online. |
 | **Per-set weight** | Each set stores its own weight × reps (handles ramp-ups / drop sets). Top weight quick-fills the rest. |
@@ -51,8 +51,8 @@ time trial, photos).
 ## 3. Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  PWA (Cloudflare Pages)                                       │
+┌───────────────────────────────────────────────────────────────┐
+│  PWA (Workers Static Assets)                                  │
 │  - App shell + service worker (offline cache + sync queue)    │
 │  - IndexedDB: local session draft + outbound mutation queue   │
 └───────────────┬───────────────────────────────────────────────┘
@@ -350,7 +350,7 @@ Mobile-first layout; works installed and offline.
 ```
 /                     wrangler + root config
   package.json
-  wrangler.toml       # Worker + D1 + R2 bindings, Pages config
+  wrangler.toml       # Worker + D1 + R2 bindings, deploy config
   /migrations         # D1 SQL migrations
   /api                # Worker source (Hono router, handlers, progression, auth)
   /web                # PWA (Vite): app shell, screens, IndexedDB, service worker
