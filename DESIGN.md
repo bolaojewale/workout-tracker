@@ -286,7 +286,7 @@ DELETE /api/routines/:id
 POST   /api/sessions                 # { date, routineId? } -> session w/ prefilled sets
 GET    /api/sessions?from=&to=
 GET    /api/sessions/:id
-PATCH  /api/sessions/:id             # metrics, notes, completed
+PATCH  /api/sessions/:id             # title, notes, completed, startedAt/endedAt
 DELETE /api/sessions/:id
 
 PATCH  /api/session-exercises/:id    # rpe, reorder
@@ -318,9 +318,12 @@ POST   /api/import                   # create/upsert routines; match/create exer
 ## 7. Screens (PWA)
 
 1. **Today** — date picker, pick/create routine, the live session log:
-   per-exercise cards with set rows (weight × reps + RPE), suggested values
-   pre-filled and greyed until touched, quick "+set" / "+5 lbs" buttons, daily
-   metrics collapsible, optional running block, notes. Big tap targets.
+   a green "Start workout" button across the top card stamps the start time
+   and shows a live clock; per-exercise cards with set rows (weight × reps +
+   RPE), suggested values pre-filled and greyed until touched, quick "+set" /
+   "+5 lbs" buttons, notes; a red "End workout" button at the bottom stamps the
+   end time, marks the workout completed, and shows the duration. A back arrow
+   returns to the main Today page. Big tap targets.
 2. **Routines** — list, create/edit (pick exercises, order, target sets/reps).
 3. **Exercises** — library, mark favorites, set progression step.
 4. **Progress** — per-exercise strength chart (favorites first), bodyweight

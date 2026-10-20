@@ -1,10 +1,10 @@
 // Today / session logging: pick date + routine, load a prefilled session
-// (progression-suggested), then edit sets, metrics, run, and notes live.
+// (progression-suggested), then start the clock, edit sets and notes live,
+// and end the workout to record how long it took.
 import { api, ApiError } from "../api";
 import { mutate } from "../sync";
 import { cacheGet, cacheSet } from "../store";
 import { esc } from "../util";
-import { renderFood, foodDatalist } from "./food";
 import type { Exercise, Routine, Session, SessionExercise } from "../../../shared/types";
 
 let library: Exercise[] = [];
@@ -19,6 +19,32 @@ const exStep = (id: string) => library.find((e) => e.id === id)?.progressionStep
 // Time-of-day label, e.g. "7:32 AM" — used to tell apart multiple same-day workouts.
 const timeLabel = (epochMs: number) =>
   new Date(epochMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+// "1h 05m" / "42m" for a finished workout.
+function durationLabel(ms: number): string {
+  const mins = Math.max(0, Math.round(ms / 60000));
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`;
+}
+
+// "h:mm:ss" for the live elapsed clock while a workout is in progress.
+function elapsedLabel(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+}
+
+// Live elapsed-time ticker; cleared whenever the screen re-renders.
+let ticker: number | null = null;
+function stopTicker() {
+  if (ticker !== null) {
+    clearInterval(ticker);
+    ticker = null;
+  }
+}
 
 export async function renderToday(root: HTMLElement) {
   root.innerHTML = `<div class="card"><p class="muted">Loading…</p></div>`;
@@ -43,6 +69,7 @@ export async function renderToday(root: HTMLElement) {
 }
 
 function paintPicker(root: HTMLElement) {
+  stopTicker();
   root.innerHTML = `
     <div class="card">
       <h2>Load a workout</h2>
@@ -140,7 +167,9 @@ async function paintRecent(root: HTMLElement) {
   host.innerHTML = recent
     .map((s) => {
       const setCount = s.exercises.reduce((n, ex) => n + ex.sets.length, 0);
-      const label = `${s.exercises.length} exercise${s.exercises.length === 1 ? "" : "s"} · ${setCount} set${setCount === 1 ? "" : "s"}`;
+      const took =
+        s.startedAt != null && s.endedAt != null ? ` · ${durationLabel(s.endedAt - s.startedAt)}` : "";
+      const label = `${s.exercises.length} exercise${s.exercises.length === 1 ? "" : "s"} · ${setCount} set${setCount === 1 ? "" : "s"}${took}`;
       const when =
         (perDate.get(s.date) ?? 0) > 1 ? `${esc(s.date)} · ${esc(timeLabel(s.createdAt))}` : esc(s.date);
       return `
@@ -175,10 +204,43 @@ async function paintRecent(root: HTMLElement) {
 }
 
 function paintSession(root: HTMLElement) {
+  stopTicker();
   const s = current!;
+  const started = s.startedAt != null;
+  const ended = started && s.endedAt != null;
+
+  // Top-card status: Start button → live clock → finished duration.
+  let status: string;
+  if (!started) {
+    status = `<button id="start" class="primary start">Start workout</button>`;
+  } else if (!ended) {
+    status = `<div class="timer" id="timer">
+      <span class="muted small">Started ${esc(timeLabel(s.startedAt!))}</span>
+      <strong id="elapsed">${elapsedLabel(Date.now() - s.startedAt!)}</strong>
+    </div>`;
+  } else {
+    status = `<div class="timer">
+      <span class="muted small">${esc(timeLabel(s.startedAt!))} – ${esc(timeLabel(s.endedAt!))}</span>
+      <strong>${esc(durationLabel(s.endedAt! - s.startedAt!))} ✅</strong>
+    </div>`;
+  }
+
+  // Bottom: End button while in progress; summary + resume link once ended.
+  let footer: string;
+  if (ended) {
+    footer = `<div class="card center-col">
+      <strong>Workout complete · ${esc(durationLabel(s.endedAt! - s.startedAt!))}</strong>
+      <button class="link-btn" id="resume">Resume workout</button>
+    </div>`;
+  } else {
+    footer = `<button id="end" class="primary end" ${started ? "" : "disabled"}>End workout</button>
+      ${started ? "" : `<p class="muted small center">Tap “Start workout” at the top first.</p>`}`;
+  }
+
   root.innerHTML = `
     <div class="card">
       <div class="row">
+        <button class="back-btn" id="back" aria-label="Back to Today" title="Back to Today">←</button>
         <div class="grow">
           <input id="title" class="title-input" value="${esc(s.title ?? "Workout")}"
             aria-label="Workout name" placeholder="Workout" />
@@ -186,34 +248,13 @@ function paintSession(root: HTMLElement) {
             s.routineId ? " · prefilled from last time" : ""
           }</div>
         </div>
-        <button class="link-btn" id="change">Change</button>
       </div>
-      <label class="check"><input type="checkbox" id="completed" ${s.completed ? "checked" : ""}/> Completed</label>
+      ${status}
       <div class="row two">
         <button class="link-btn" id="another">+ Start another (same day)</button>
         <button class="link-btn danger" id="del-session">Delete this workout</button>
       </div>
     </div>
-
-    <details class="card"><summary>Daily metrics</summary>
-      <div class="two">
-        ${metricInput("bodyWeight", "Weight (lbs)", s.bodyWeight)}
-        ${metricInput("sleepHours", "Sleep (hrs)", s.sleepHours)}
-      </div>
-      <div class="two">
-        ${metricInput("bodyFat", "Body fat (%)", s.bodyFat)}
-        ${metricInput("muscleMass", "Muscle mass (lbs)", s.muscleMass)}
-      </div>
-      <div class="two">
-        ${metricInput("energy", "Energy 1–10", s.energy)}
-        ${metricInput("mood", "Mood 1–10", s.mood)}
-      </div>
-    </details>
-
-    <details class="card" id="food-card"><summary>Food</summary>
-      ${foodDatalist()}
-      <div id="food-body"><p class="muted small">Open to load…</p></div>
-    </details>
 
     <div id="exercises">${s.exercises.map(exerciseCard).join("")}</div>
 
@@ -231,18 +272,13 @@ function paintSession(root: HTMLElement) {
       </div>
     </div>
 
-    ${runCard(s)}
-
     <div class="card">
       <label class="stack">Notes<textarea id="notes" rows="3">${esc(s.notes ?? "")}</textarea></label>
-    </div>`;
+    </div>
+
+    ${footer}`;
 
   wireSession(root);
-}
-
-function metricInput(field: string, label: string, value: number | null): string {
-  return `<label class="stack">${label}
-    <input type="number" step="any" data-metric="${field}" value="${value ?? ""}" /></label>`;
 }
 
 function exerciseCard(sx: SessionExercise): string {
@@ -275,47 +311,44 @@ function exerciseCard(sx: SessionExercise): string {
     </div>`;
 }
 
-function runCard(s: Session): string {
-  const r = s.run;
-  const mmss =
-    r?.durationSec != null
-      ? `${Math.floor(r.durationSec / 60)}:${String(r.durationSec % 60).padStart(2, "0")}`
-      : "";
-  return `
-    <details class="card" id="run" ${r ? "open" : ""}><summary>Running (optional)</summary>
-      <div class="two">
-        <label class="stack">Distance (mi)<input id="run-dist" type="number" step="any" value="${r?.distanceMi ?? ""}" /></label>
-        <label class="stack">Time (mm:ss)<input id="run-time" value="${mmss}" placeholder="28:30" /></label>
-      </div>
-      <div class="two">
-        <label class="stack">Effort 1–10<input id="run-effort" type="number" value="${r?.effort ?? ""}" /></label>
-        <label class="stack">Type
-          <select id="run-type">
-            ${["", "easy", "tempo", "intervals", "long", "recovery"]
-              .map((t) => `<option value="${t}" ${r?.runType === (t || null) ? "selected" : ""}>${t || "—"}</option>`)
-              .join("")}
-          </select>
-        </label>
-      </div>
-      <div class="muted small" id="pace"></div>
-    </details>`;
-}
-
 // ---------- wiring ----------
 function wireSession(root: HTMLElement) {
   const s = current!;
 
-  // Food card: load the day's meals the first time it's expanded.
-  const foodCard = root.querySelector<HTMLDetailsElement>("#food-card");
-  let foodLoaded = false;
-  foodCard?.addEventListener("toggle", () => {
-    if (foodCard.open && !foodLoaded) {
-      foodLoaded = true;
-      renderFood(root.querySelector<HTMLElement>("#food-body")!, s.date);
-    }
+  // Back arrow → main Today page (picker + recent list).
+  root.querySelector("#back")!.addEventListener("click", () => {
+    current = null;
+    paintPicker(root);
   });
 
-  root.querySelector("#change")!.addEventListener("click", () => paintPicker(root));
+  // Start: stamp the start time and switch the top card to the live clock.
+  root.querySelector("#start")?.addEventListener("click", () => {
+    patchSession({ startedAt: Date.now(), endedAt: null });
+    paintSession(root);
+  });
+
+  // End: stamp the end time, mark the workout completed, show the duration.
+  root.querySelector("#end")?.addEventListener("click", () => {
+    if (s.startedAt == null) return;
+    patchSession({ endedAt: Date.now(), completed: true });
+    paintSession(root);
+  });
+
+  // Resume (ended by mistake): clear the end time and keep the clock going.
+  root.querySelector("#resume")?.addEventListener("click", () => {
+    patchSession({ endedAt: null, completed: false });
+    paintSession(root);
+  });
+
+  // Live elapsed clock while in progress.
+  const elapsed = root.querySelector<HTMLElement>("#elapsed");
+  if (elapsed && s.startedAt != null && s.endedAt == null) {
+    const startedAt = s.startedAt;
+    ticker = window.setInterval(() => {
+      if (!elapsed.isConnected) return stopTicker();
+      elapsed.textContent = elapsedLabel(Date.now() - startedAt);
+    }, 1000);
+  }
 
   // Rename this workout inline (defaults back to "Workout" if cleared).
   root.querySelector<HTMLInputElement>("#title")!.addEventListener("change", (e) => {
@@ -343,19 +376,6 @@ function wireSession(root: HTMLElement) {
   root.querySelector("#another")!.addEventListener("click", () => {
     loadSession(root, s.date, s.routineId, true);
   });
-
-  root.querySelector<HTMLInputElement>("#completed")!.addEventListener("change", (e) =>
-    patchSession({ completed: (e.target as HTMLInputElement).checked }),
-  );
-
-  // Daily metrics
-  root.querySelectorAll<HTMLElement>("[data-metric]").forEach((el) =>
-    el.addEventListener("change", () => {
-      const field = el.dataset.metric!;
-      const raw = (el as HTMLInputElement).value;
-      patchSession({ [field]: raw === "" ? null : Number(raw) });
-    }),
-  );
 
   root.querySelector<HTMLTextAreaElement>("#notes")!.addEventListener("change", (e) =>
     patchSession({ notes: (e.target as HTMLTextAreaElement).value || null }),
@@ -422,7 +442,6 @@ function wireSession(root: HTMLElement) {
   });
 
   wireAddExercise(root);
-  wireRun(root);
 }
 
 // "+ Add an exercise" control below the exercise list. Picks from the library
@@ -491,42 +510,6 @@ function wireSetRow(rowEl: HTMLElement) {
     rowEl.remove();
     cacheCurrent();
   });
-}
-
-function parseMmss(v: string): number | null {
-  if (!v.trim()) return null;
-  const [m, s] = v.split(":");
-  if (s === undefined) return Number(m) || null;
-  return (Number(m) || 0) * 60 + (Number(s) || 0);
-}
-
-function wireRun(root: HTMLElement) {
-  const get = <T extends HTMLElement>(s: string) => root.querySelector<T>(s)!;
-  const dist = get<HTMLInputElement>("#run-dist");
-  const time = get<HTMLInputElement>("#run-time");
-  const effort = get<HTMLInputElement>("#run-effort");
-  const type = get<HTMLSelectElement>("#run-type");
-  const pace = get<HTMLElement>("#pace");
-
-  function showPace() {
-    const d = Number(dist.value);
-    const secs = parseMmss(time.value);
-    if (d > 0 && secs) {
-      const p = secs / d;
-      pace.textContent = `Pace: ${Math.floor(p / 60)}:${String(Math.round(p % 60)).padStart(2, "0")}/mi`;
-    } else pace.textContent = "";
-  }
-  function save() {
-    showPace();
-    mutate("PUT", `/api/sessions/${current!.id}/run`, {
-      distanceMi: dist.value === "" ? null : Number(dist.value),
-      durationSec: parseMmss(time.value),
-      effort: effort.value === "" ? null : Number(effort.value),
-      runType: type.value || null,
-    });
-  }
-  [dist, time, effort, type].forEach((el) => el.addEventListener("change", save));
-  showPace();
 }
 
 function patchSession(patch: Record<string, unknown>) {
