@@ -23,6 +23,8 @@ interface SessionRow {
   notes: string | null;
   completed: number;
   created_at: number;
+  started_at: number | null;
+  ended_at: number | null;
 }
 interface SxRow {
   id: string;
@@ -94,6 +96,8 @@ async function loadSession(env: Env, userId: string, id: string): Promise<Sessio
     notes: s.notes,
     completed: !!s.completed,
     createdAt: s.created_at,
+    startedAt: s.started_at,
+    endedAt: s.ended_at,
     exercises,
     run: run
       ? {
@@ -277,7 +281,7 @@ sessions.get("/:id", async (c) => {
   return s ? c.json(s) : c.json({ error: "not found" }, 404);
 });
 
-// Daily metrics / notes / completed / title.
+// Daily metrics / notes / completed / title / start+end timestamps.
 sessions.patch("/:id", async (c) => {
   const id = c.req.param("id");
   const userId = c.get("userId");
@@ -299,6 +303,8 @@ sessions.patch("/:id", async (c) => {
     calories: b.calories,
     notes: b.notes,
     completed: b.completed === undefined ? undefined : b.completed ? 1 : 0,
+    started_at: b.startedAt,
+    ended_at: b.endedAt,
   };
   const sets = Object.entries(fields).filter(([, v]) => v !== undefined);
   if (sets.length) {

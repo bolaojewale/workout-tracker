@@ -109,6 +109,8 @@ export interface Session {
   notes: string | null;
   completed: boolean;
   createdAt: number; // epoch ms; used for time-of-day labels when multiple/day
+  startedAt: number | null; // epoch ms; set by "Start workout"
+  endedAt: number | null; // epoch ms; set by "End workout"
   exercises: SessionExercise[];
   run: RunBlock | null;
 }
