@@ -48,6 +48,8 @@ export interface Exercise {
   unit: string;
   progressionStep: number;
   archived: boolean;
+  /** Number of logged workouts that include this exercise (read-only). */
+  sessionCount?: number;
 }
 
 export interface RoutineExercise {

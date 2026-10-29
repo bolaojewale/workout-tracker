@@ -325,7 +325,10 @@ POST   /api/import                   # create/upsert routines; match/create exer
    end time, marks the workout completed, and shows the duration. A back arrow
    returns to the main Today page. Big tap targets.
 2. **Routines** — list, create/edit (pick exercises, order, target sets/reps).
-3. **Exercises** — library, mark favorites, set progression step.
+3. **Exercises** — library, mark favorites, set progression step. Flags
+   same-name duplicates and merges them (history, routines, and check-ins
+   move to the kept copy); any exercise can also be merged into another by
+   name from its edit form.
 4. **Progress** — per-exercise strength chart (favorites first), bodyweight
    trend, weekly volume, running pace trend.
 5. **Summaries** — Weekly (weight trend, completed vs planned, top-4 progress,

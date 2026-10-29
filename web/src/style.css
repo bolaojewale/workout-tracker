@@ -512,6 +512,39 @@ label.photo-upload {
   margin: 0.3rem 0;
 }
 
+/* Duplicate-exercise merge (Exercises screen) */
+.dupes {
+  border-color: #fbbf24;
+}
+.dupe-group {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--surface-2);
+}
+.dupe-row {
+  padding: 0.3rem 0;
+  cursor: pointer;
+}
+.dupe-row input[type="radio"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  padding: 0;
+  margin: 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+.block {
+  display: block;
+}
+.dupe-group .ghost {
+  margin-top: 0.4rem;
+}
+/* The merge-target picker takes the row; the Merge button hugs its label. */
+#merge-go {
+  width: auto;
+  flex: none;
+  padding: 0.6rem 1rem;
+}
+
 /* Recent workouts list (Today picker) */
 .recent-item {
   padding: 0.55rem 0;

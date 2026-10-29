@@ -14,6 +14,7 @@ interface ExerciseRow {
   unit: string;
   progression_step: number;
   archived: number;
+  session_count?: number;
 }
 
 function toExercise(r: ExerciseRow): Exercise {
@@ -27,6 +28,7 @@ function toExercise(r: ExerciseRow): Exercise {
     unit: r.unit,
     progressionStep: r.progression_step,
     archived: !!r.archived,
+    ...(r.session_count !== undefined ? { sessionCount: r.session_count } : {}),
   };
 }
 
@@ -36,9 +38,11 @@ exercises.use("*", requireAuth);
 exercises.get("/", async (c) => {
   const includeArchived = c.req.query("archived") === "1";
   const rows = await c.env.DB.prepare(
-    `SELECT * FROM exercise
-     WHERE user_id = ? ${includeArchived ? "" : "AND archived = 0"}
-     ORDER BY is_favorite DESC, name COLLATE NOCASE`,
+    `SELECT e.*,
+            (SELECT COUNT(*) FROM session_exercise se WHERE se.exercise_id = e.id) AS session_count
+       FROM exercise e
+      WHERE e.user_id = ? ${includeArchived ? "" : "AND e.archived = 0"}
+      ORDER BY e.is_favorite DESC, e.name COLLATE NOCASE`,
   )
     .bind(c.get("userId"))
     .all<ExerciseRow>();
@@ -116,6 +120,61 @@ exercises.patch("/:id", async (c) => {
     .bind(id)
     .first<ExerciseRow>();
   return c.json(toExercise(row!));
+});
+
+// Merge duplicate exercises into one. Every workout, routine, and check-in
+// that referenced a removed exercise is re-pointed at `keepId`, then the
+// removed rows are deleted outright (nothing references them any more).
+// Where a routine already contains the kept exercise, the duplicate's row is
+// dropped instead of re-pointed (UNIQUE(routine_id, exercise_id)).
+exercises.post("/merge", async (c) => {
+  const userId = c.get("userId");
+  const b = await c.req.json<{ keepId?: string; removeIds?: string[] }>();
+  const keepId = b.keepId;
+  const removeIds = (b.removeIds ?? []).filter((id) => id && id !== keepId);
+  if (!keepId || !removeIds.length) {
+    return c.json({ error: "keepId and at least one removeId are required" }, 400);
+  }
+
+  // Every id must be one of this user's exercises.
+  const ids = [keepId, ...removeIds];
+  const owned = await c.env.DB.prepare(
+    `SELECT id, is_favorite FROM exercise WHERE user_id = ? AND id IN (${ids.map(() => "?").join(",")})`,
+  )
+    .bind(userId, ...ids)
+    .all<{ id: string; is_favorite: number }>();
+  const found = new Set((owned.results ?? []).map((r) => r.id));
+  if (ids.some((id) => !found.has(id))) return c.json({ error: "exercise not found" }, 404);
+
+  // A favourite survives the merge even if the kept copy wasn't one.
+  const anyFavorite = (owned.results ?? []).some((r) => r.is_favorite);
+
+  const stmts: D1PreparedStatement[] = [];
+  for (const rm of removeIds) {
+    stmts.push(
+      c.env.DB.prepare("UPDATE session_exercise SET exercise_id = ? WHERE exercise_id = ?").bind(keepId, rm),
+      c.env.DB.prepare("UPDATE checkin_lift SET exercise_id = ? WHERE exercise_id = ?").bind(keepId, rm),
+      c.env.DB.prepare(
+        `DELETE FROM routine_exercise WHERE exercise_id = ?
+           AND routine_id IN (SELECT routine_id FROM routine_exercise WHERE exercise_id = ?)`,
+      ).bind(rm, keepId),
+      c.env.DB.prepare("UPDATE routine_exercise SET exercise_id = ? WHERE exercise_id = ?").bind(keepId, rm),
+      c.env.DB.prepare("DELETE FROM exercise WHERE id = ? AND user_id = ?").bind(rm, userId),
+    );
+  }
+  if (anyFavorite) {
+    stmts.push(c.env.DB.prepare("UPDATE exercise SET is_favorite = 1 WHERE id = ?").bind(keepId));
+  }
+  await c.env.DB.batch(stmts);
+
+  const row = await c.env.DB.prepare(
+    `SELECT e.*,
+            (SELECT COUNT(*) FROM session_exercise se WHERE se.exercise_id = e.id) AS session_count
+       FROM exercise e WHERE e.id = ?`,
+  )
+    .bind(keepId)
+    .first<ExerciseRow>();
+  return c.json({ kept: toExercise(row!), removed: removeIds.length });
 });
 
 // Soft delete (archive) so historical sessions keep referencing it.
